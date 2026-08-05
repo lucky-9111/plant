@@ -15,13 +15,14 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Aaiji Nursery")
 
-from fastapi import FastAPI
 
-app = FastAPI(title="Aaiji Nursery")
+
 
 @app.get("/")
-def home():
-    return {"message": "Welcome to Aaiji Nursery"}
+def serve_home():
+    if FRONTEND_DIST.exists():
+        return FileResponse(FRONTEND_DIST / "index.html")
+    return {"message": "Frontend not built"}
 
 app.add_middleware(SessionMiddleware, secret_key="aaiji-nursery-dev-secret-change-me")
 
