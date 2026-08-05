@@ -15,6 +15,14 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Aaiji Nursery")
 
+from fastapi import FastAPI
+
+app = FastAPI(title="Aaiji Nursery")
+
+@app.get("/")
+def home():
+    return {"message": "Welcome to Aaiji Nursery"}
+
 app.add_middleware(SessionMiddleware, secret_key="aaiji-nursery-dev-secret-change-me")
 
 app.include_router(api_public.router)
