@@ -42,6 +42,7 @@ export default function Inquiries() {
               <tr>
                 <th>Name</th>
                 <th>Mobile</th>
+                <th>Product</th>
                 <th>Requirement</th>
                 <th>Received</th>
                 <th>Status</th>
@@ -53,6 +54,13 @@ export default function Inquiries() {
                 <tr key={item.id}>
                   <td>{item.name}</td>
                   <td>{item.mobile}</td>
+                  <td>
+                    {item.plant ? (
+                      <span className="badge badge-accent">{item.plant.name}</span>
+                    ) : (
+                      <span className="badge badge-muted">General</span>
+                    )}
+                  </td>
                   <td style={{ maxWidth: 260 }}>{item.requirement || "-"}</td>
                   <td>{new Date(item.created_at).toLocaleDateString()}</td>
                   <td>

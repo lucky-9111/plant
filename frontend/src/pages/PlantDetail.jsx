@@ -76,7 +76,10 @@ export default function PlantDetail() {
                   ))}
                 </ul>
               )}
-              <Link to="/contact" className="btn btn-primary">
+              <Link
+                to={`/contact?plant_id=${plant.id}&plant_name=${encodeURIComponent(plant.name)}`}
+                className="btn btn-primary"
+              >
                 Enquire About This Plant
               </Link>
             </div>

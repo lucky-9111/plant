@@ -3,6 +3,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.database import Base, engine
@@ -12,6 +13,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 
 Base.metadata.create_all(bind=engine)
+
+with engine.connect() as conn:
+    existing_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(inquiries)"))}
+    if "plant_id" not in existing_columns:
+        conn.execute(text("ALTER TABLE inquiries ADD COLUMN plant_id INTEGER"))
+        conn.commit()
 
 app = FastAPI(title="Aaiji Nursery")
 

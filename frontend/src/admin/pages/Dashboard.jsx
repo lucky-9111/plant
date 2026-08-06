@@ -46,6 +46,7 @@ export default function Dashboard() {
               <tr>
                 <th>Name</th>
                 <th>Mobile</th>
+                <th>Product</th>
                 <th>Requirement</th>
                 <th>Received</th>
                 <th>Status</th>
@@ -56,6 +57,13 @@ export default function Dashboard() {
                 <tr key={i.id}>
                   <td>{i.name}</td>
                   <td>{i.mobile}</td>
+                  <td>
+                    {i.plant ? (
+                      <span className="badge badge-accent">{i.plant.name}</span>
+                    ) : (
+                      <span className="badge badge-muted">General</span>
+                    )}
+                  </td>
                   <td>{i.requirement || "-"}</td>
                   <td>{new Date(i.created_at).toLocaleDateString()}</td>
                   <td>

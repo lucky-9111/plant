@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { useSettings } from "../context/SettingsContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
@@ -8,7 +9,14 @@ const MOBILE_PATTERN = /^[6-9]\d{9}$/;
 export default function Contact() {
   const settings = useSettings();
   useDocumentTitle("Contact Us | Aaiji Nursery");
-  const [form, setForm] = useState({ name: "", mobile: "", requirement: "" });
+  const [searchParams] = useSearchParams();
+  const plantId = searchParams.get("plant_id");
+  const plantName = searchParams.get("plant_name");
+  const [form, setForm] = useState({
+    name: "",
+    mobile: "",
+    requirement: plantName ? `Interested in: ${plantName}` : "",
+  });
   const [status, setStatus] = useState("idle"); // idle | saving | done | error
   const [error, setError] = useState("");
 
@@ -27,7 +35,11 @@ export default function Contact() {
     setStatus("saving");
     setError("");
     try {
-      await api.post("/inquiries", { ...form, mobile });
+      await api.post("/inquiries", {
+        ...form,
+        mobile,
+        plant_id: plantId ? Number(plantId) : null,
+      });
       setStatus("done");
       setForm({ name: "", mobile: "", requirement: "" });
     } catch (err) {
@@ -100,6 +112,11 @@ export default function Contact() {
           <div className="card">
             <div className="card-body">
               <h2 style={{ marginTop: 0 }}>Send an Inquiry</h2>
+              {plantName && status !== "done" && (
+                <div className="badge badge-accent" style={{ marginBottom: 16 }}>
+                  Enquiring about: {plantName}
+                </div>
+              )}
               {status === "done" ? (
                 <div className="alert alert-success">
                   Thanks! We've received your inquiry and will get back to you shortly.

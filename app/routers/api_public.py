@@ -185,10 +185,15 @@ def get_blog_post(slug: str, db: Session = Depends(get_db)):
 
 @router.post("/inquiries", response_model=InquiryOut, status_code=201)
 def create_inquiry(payload: InquiryIn, db: Session = Depends(get_db)):
+    plant_id = payload.plant_id
+    if plant_id is not None and not db.query(Plant).filter(Plant.id == plant_id).first():
+        plant_id = None
+
     inquiry = Inquiry(
         name=payload.name.strip(),
         mobile=payload.mobile.strip(),
         requirement=payload.requirement.strip(),
+        plant_id=plant_id,
     )
     db.add(inquiry)
     db.commit()

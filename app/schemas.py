@@ -172,6 +172,14 @@ class BlogPostIn(BaseModel):
     is_published: bool = True
 
 
+class InquiryPlantOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    slug: str
+    image_url: str
+
+
 class InquiryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -179,6 +187,8 @@ class InquiryOut(BaseModel):
     mobile: str
     requirement: str
     status: str
+    plant_id: Optional[int] = None
+    plant: Optional[InquiryPlantOut] = None
     created_at: datetime
 
 
@@ -186,6 +196,7 @@ class InquiryIn(BaseModel):
     name: str
     mobile: str
     requirement: str = ""
+    plant_id: Optional[int] = None
 
 
 class InquiryStatusIn(BaseModel):

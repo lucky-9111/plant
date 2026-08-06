@@ -146,7 +146,10 @@ class Inquiry(Base):
     mobile = Column(String(30), nullable=False)
     requirement = Column(Text, default="")
     status = Column(String(30), default="new")  # new, contacted, closed
+    plant_id = Column(Integer, ForeignKey("plants.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    plant = relationship("Plant")
 
 
 class SiteSetting(Base):

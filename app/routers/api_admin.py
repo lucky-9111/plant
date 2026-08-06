@@ -2,7 +2,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from slugify import slugify
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.auth import verify_password
 from app.database import get_db
@@ -102,7 +102,13 @@ def dashboard(admin: str = Depends(get_current_admin), db: Session = Depends(get
         "testimonials": db.query(Testimonial).count(),
         "blog_posts": db.query(BlogPost).count(),
     }
-    recent_inquiries = db.query(Inquiry).order_by(Inquiry.created_at.desc()).limit(5).all()
+    recent_inquiries = (
+        db.query(Inquiry)
+        .options(joinedload(Inquiry.plant))
+        .order_by(Inquiry.created_at.desc())
+        .limit(5)
+        .all()
+    )
     return {
         "counts": counts,
         "recent_inquiries": [InquiryOut.model_validate(i) for i in recent_inquiries],
@@ -547,7 +553,12 @@ def delete_blog_post(
 
 @router.get("/inquiries", response_model=list[InquiryOut])
 def list_inquiries(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
-    return db.query(Inquiry).order_by(Inquiry.created_at.desc()).all()
+    return (
+        db.query(Inquiry)
+        .options(joinedload(Inquiry.plant))
+        .order_by(Inquiry.created_at.desc())
+        .all()
+    )
 
 
 @router.put("/inquiries/{item_id}/status", response_model=InquiryOut)
