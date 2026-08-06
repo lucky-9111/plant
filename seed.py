@@ -248,4 +248,4 @@ db.commit()
 db.close()
 
 print("Database seeded successfully.")
-print("Admin login -> username: lucky | password: lucky@123")
+print("Admin login -> username: admin | password: "aaiji@admin123)
