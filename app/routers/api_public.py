@@ -1,6 +1,7 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
@@ -42,18 +43,68 @@ def list_categories(db: Session = Depends(get_db)):
     return db.query(Category).order_by(Category.display_order).all()
 
 
+PLANT_SORT_OPTIONS = {
+    "price_asc": Plant.price.asc(),
+    "price_desc": Plant.price.desc(),
+    "name": Plant.name.asc(),
+    "newest": Plant.created_at.desc(),
+}
+
+
 @router.get("/plants", response_model=list[PlantOut])
 def list_plants(
+    response: Response,
+    search: Optional[str] = None,
     category: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    in_stock: Optional[bool] = None,
     featured: Optional[bool] = None,
+    sort_by: Optional[str] = None,
+    page: Optional[int] = None,
+    limit: Optional[int] = None,
     db: Session = Depends(get_db),
 ):
     query = db.query(Plant).options(joinedload(Plant.category)).filter(Plant.is_active.is_(True))
+
     if category:
-        query = query.join(Category).filter(Category.slug == category)
+        slugs = [slug.strip() for slug in category.split(",") if slug.strip()]
+        if slugs:
+            query = query.join(Category).filter(Category.slug.in_(slugs))
+
+    if search:
+        like = f"%{search.strip()}%"
+        query = query.filter(or_(Plant.name.ilike(like), Plant.description.ilike(like)))
+
+    if min_price is not None:
+        query = query.filter(Plant.price >= min_price)
+    if max_price is not None:
+        query = query.filter(Plant.price <= max_price)
+
+    if in_stock is not None:
+        query = query.filter(Plant.stock_quantity > 0 if in_stock else Plant.stock_quantity <= 0)
+
     if featured:
         query = query.filter(Plant.is_featured.is_(True))
-    return query.all()
+
+    query = query.order_by(PLANT_SORT_OPTIONS.get(sort_by, Plant.id.asc()))
+
+    total = query.count()
+
+    if page is None and limit is None:
+        items = query.all()
+        page = 1
+        limit = total or 1
+    else:
+        page = max(page or 1, 1)
+        limit = min(max(limit or 12, 1), 100)
+        items = query.offset((page - 1) * limit).limit(limit).all()
+
+    response.headers["X-Total-Count"] = str(total)
+    response.headers["X-Page"] = str(page)
+    response.headers["X-Total-Pages"] = str(max(1, -(-total // limit)))
+
+    return items
 
 
 @router.get("/plants/{slug}", response_model=PlantOut)

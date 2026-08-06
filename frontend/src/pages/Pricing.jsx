@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { Loading, Empty } from "../components/Loading";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 export default function Pricing() {
   const [plans, setPlans] = useState(null);
+  useDocumentTitle("Pricing Plans | Aaiji Nursery");
 
   useEffect(() => {
     api.get("/pricing-plans").then(setPlans);

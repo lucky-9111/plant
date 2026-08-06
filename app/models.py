@@ -32,20 +32,20 @@ class Plant(Base):
     __tablename__ = "plants"
 
     id = Column(Integer, primary_key=True, index=True)
-    category_id = Column(Integer, ForeignKey("categories.id"), nullable=False)
+    category_id = Column(Integer, ForeignKey("categories.id"), nullable=False, index=True)
     name = Column(String(150), nullable=False)
     slug = Column(String(170), unique=True, nullable=False, index=True)
     description = Column(Text, default="")
-    price = Column(Float, nullable=False, default=0)
+    price = Column(Float, nullable=False, default=0, index=True)
     discount_price = Column(Float, nullable=True)
-    stock_quantity = Column(Integer, default=0)
+    stock_quantity = Column(Integer, default=0, index=True)
     sku = Column(String(50), default="")
     image_url = Column(String(300), default="")
     care_level = Column(String(50), default="Easy")
     features = Column(Text, default="")  # newline separated bullet features
     is_featured = Column(Boolean, default=False)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    is_active = Column(Boolean, default=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
     category = relationship("Category", back_populates="plants")
 

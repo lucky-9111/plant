@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { Loading, Empty } from "../components/Loading";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 export default function Gallery() {
   const [images, setImages] = useState(null);
+  useDocumentTitle("Gallery | Aaiji Nursery");
 
   useEffect(() => {
     api.get("/gallery").then(setImages);

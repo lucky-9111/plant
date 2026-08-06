@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import { Loading, Empty } from "../components/Loading";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 export default function BlogPost() {
   const { slug } = useParams();
   const [post, setPost] = useState(null);
   const [notFound, setNotFound] = useState(false);
+  useDocumentTitle(post ? `${post.title} | Aaiji Nursery` : "Blog | Aaiji Nursery");
 
   useEffect(() => {
     setPost(null);

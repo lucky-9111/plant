@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { Loading, Empty } from "../components/Loading";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 export default function Blog() {
   const [posts, setPosts] = useState(null);
+  useDocumentTitle("Blog & Updates | Aaiji Nursery");
 
   useEffect(() => {
     api.get("/blog").then(setPosts);

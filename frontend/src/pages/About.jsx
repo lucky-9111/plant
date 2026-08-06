@@ -1,7 +1,32 @@
 import { useSettings } from "../context/SettingsContext";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
+
+const VALUE_PROPS = [
+  {
+    icon: "🌿",
+    title: "Quality Assured",
+    text: "Every plant is inspected for health and vigour before it leaves our nursery.",
+  },
+  {
+    icon: "🚚",
+    title: "Careful Delivery",
+    text: "Plants are packed to survive the journey, not just look good in a photo.",
+  },
+  {
+    icon: "🌱",
+    title: "Expert Guidance",
+    text: "Our horticulturists help you pick the right plant for your light, space, and care level.",
+  },
+  {
+    icon: "💚",
+    title: "Ongoing Support",
+    text: "Questions after you buy? We're a call or WhatsApp message away.",
+  },
+];
 
 export default function About() {
   const settings = useSettings();
+  useDocumentTitle("About Us | Aaiji Nursery");
 
   return (
     <>
@@ -43,6 +68,24 @@ export default function About() {
       </section>
 
       <section className="section section-alt">
+        <div className="container">
+          <div className="section-head">
+            <span className="eyebrow">Why choose us</span>
+            <h2>What Sets Us Apart</h2>
+          </div>
+          <div className="grid grid-4">
+            {VALUE_PROPS.map((item) => (
+              <div key={item.title} className="value-prop">
+                <span className="value-prop-icon">{item.icon}</span>
+                <h3>{item.title}</h3>
+                <p>{item.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="section">
         <div className="container">
           <div className="section-head">
             <span className="eyebrow">Meet the people</span>

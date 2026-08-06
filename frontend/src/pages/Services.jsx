@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { Loading, Empty } from "../components/Loading";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 export default function Services() {
   const [services, setServices] = useState(null);
+  useDocumentTitle("Our Services | Aaiji Nursery");
 
   useEffect(() => {
     api.get("/services").then(setServices);

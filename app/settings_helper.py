@@ -9,15 +9,17 @@ DEFAULT_SETTINGS = {
     "about_text": "Aaiji Nursery started as a small family-run plant stall and has grown into a full-service nursery offering plants, gardening supplies, and landscaping services. We believe every home and office deserves a touch of green.",
     "years_experience": "12",
     "team_details": "Our team of 8 horticulturists and landscape designers is passionate about helping your garden thrive, from plant selection to ongoing care.",
-    "phone": "+91 98765 43210",
-    "whatsapp": "919876543210",
-    "email": "hello@aaijinursery.com",
-    "address": "Plot 14, Green Valley Road, Nashik, Maharashtra, India",
-    "map_embed_url": "https://www.google.com/maps?q=Nashik,Maharashtra,India&output=embed",
+    "phone": "+91 91112 12524",
+    "whatsapp": "919111212524",
+    "email": "lucky9111sharma@gmail.com",
+    "address": "Indore, Madhya Pradesh, India",
+    "map_embed_url": "https://www.google.com/maps?q=Indore,Madhya+Pradesh,India&output=embed",
     "working_hours": "Mon - Sat: 9:00 AM - 7:00 PM, Sun: 10:00 AM - 4:00 PM",
     "refund_policy": "Plants that arrive damaged or die within 7 days of delivery due to a growing defect are eligible for a free replacement or full refund. Contact support with a photo of the plant.",
     "delivery_days": "3-5 business days for local delivery, 5-9 business days for outstation orders.",
     "payment_methods": "UPI, Credit/Debit Cards, Net Banking, and Cash on Delivery.",
+    "facebook_url": "",
+    "instagram_url": "",
 }
 
 

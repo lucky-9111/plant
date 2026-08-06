@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { Loading, Empty } from "../components/Loading";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 export default function FAQs() {
   const [faqs, setFaqs] = useState(null);
   const [openId, setOpenId] = useState(null);
+  useDocumentTitle("FAQs | Aaiji Nursery");
 
   useEffect(() => {
     api.get("/faqs").then(setFaqs);

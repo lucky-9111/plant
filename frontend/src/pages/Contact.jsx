@@ -1,9 +1,13 @@
 import { useState } from "react";
 import { api } from "../api";
 import { useSettings } from "../context/SettingsContext";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
+
+const MOBILE_PATTERN = /^[6-9]\d{9}$/;
 
 export default function Contact() {
   const settings = useSettings();
+  useDocumentTitle("Contact Us | Aaiji Nursery");
   const [form, setForm] = useState({ name: "", mobile: "", requirement: "" });
   const [status, setStatus] = useState("idle"); // idle | saving | done | error
   const [error, setError] = useState("");
@@ -14,10 +18,16 @@ export default function Contact() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    const mobile = form.mobile.trim();
+    if (!MOBILE_PATTERN.test(mobile)) {
+      setError("Please enter a valid 10-digit mobile number.");
+      setStatus("error");
+      return;
+    }
     setStatus("saving");
     setError("");
     try {
-      await api.post("/inquiries", form);
+      await api.post("/inquiries", { ...form, mobile });
       setStatus("done");
       setForm({ name: "", mobile: "", requirement: "" });
     } catch (err) {
@@ -112,9 +122,13 @@ export default function Contact() {
                     <input
                       id="mobile"
                       className="form-control"
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={10}
+                      placeholder="10-digit mobile number"
                       required
                       value={form.mobile}
-                      onChange={(e) => update("mobile", e.target.value)}
+                      onChange={(e) => update("mobile", e.target.value.replace(/\D/g, ""))}
                     />
                   </div>
                   <div className="form-group">

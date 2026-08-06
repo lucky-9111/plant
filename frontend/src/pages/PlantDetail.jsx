@@ -3,12 +3,14 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import PlantCard from "../components/PlantCard";
 import { Loading, Empty } from "../components/Loading";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 export default function PlantDetail() {
   const { slug } = useParams();
   const [plant, setPlant] = useState(null);
   const [related, setRelated] = useState(null);
   const [notFound, setNotFound] = useState(false);
+  useDocumentTitle(plant ? `${plant.name} | Aaiji Nursery` : "Plant Details | Aaiji Nursery");
 
   useEffect(() => {
     setPlant(null);

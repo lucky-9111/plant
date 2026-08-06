@@ -11,6 +11,25 @@ export default function Footer() {
           <div>
             <h4>{settings.business_name || "Aaiji Nursery"}</h4>
             <p>{settings.tagline}</p>
+            {(settings.facebook_url || settings.instagram_url || settings.whatsapp) && (
+              <div className="footer-social">
+                {settings.facebook_url && (
+                  <a href={settings.facebook_url} target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+                    f
+                  </a>
+                )}
+                {settings.instagram_url && (
+                  <a href={settings.instagram_url} target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+                    &#128247;
+                  </a>
+                )}
+                {settings.whatsapp && (
+                  <a href={`https://wa.me/${settings.whatsapp}`} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
+                    &#128172;
+                  </a>
+                )}
+              </div>
+            )}
           </div>
           <div>
             <h4>Explore</h4>

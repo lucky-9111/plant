@@ -14,6 +14,8 @@ const FIELDS = [
   { key: "email", label: "Email Address" },
   { key: "address", label: "Business Address", type: "textarea" },
   { key: "map_embed_url", label: "Google Maps Embed URL" },
+  { key: "facebook_url", label: "Facebook Page URL" },
+  { key: "instagram_url", label: "Instagram Profile URL" },
   { key: "working_hours", label: "Working Hours" },
   { key: "delivery_days", label: "Delivery Timeline" },
   { key: "payment_methods", label: "Payment Methods Accepted" },

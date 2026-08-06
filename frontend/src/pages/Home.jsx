@@ -3,14 +3,21 @@ import { Link } from "react-router-dom";
 import { api } from "../api";
 import { useSettings } from "../context/SettingsContext";
 import PlantCard from "../components/PlantCard";
+import PlantExplorer from "../components/PlantExplorer";
 import Stars from "../components/Stars";
+import Avatar from "../components/Avatar";
 import { Loading } from "../components/Loading";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 export default function Home() {
   const settings = useSettings();
   const [categories, setCategories] = useState(null);
   const [featured, setFeatured] = useState(null);
   const [testimonials, setTestimonials] = useState(null);
+
+  useDocumentTitle(
+    `${settings.business_name || "Aaiji Nursery"} - ${settings.tagline || "Plant Nursery & Landscaping"}`
+  );
 
   useEffect(() => {
     api.get("/categories").then(setCategories);
@@ -44,6 +51,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <PlantExplorer />
 
       <section className="section">
         <div className="container">
@@ -127,7 +136,10 @@ export default function Home() {
                     <p style={{ marginTop: 10, color: "var(--color-text-muted)" }}>
                       &ldquo;{t.message}&rdquo;
                     </p>
-                    <strong>{t.customer_name}</strong>
+                    <div className="testimonial-author">
+                      <Avatar name={t.customer_name} src={t.image_url} size={40} />
+                      <strong>{t.customer_name}</strong>
+                    </div>
                   </div>
                 </div>
               ))}

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import { useSettings } from "../context/SettingsContext";
+import NavSearch from "./NavSearch";
+import logoImg from "../assets/logo.png";
 
 const LINKS = [
   { to: "/", label: "Home" },
@@ -22,8 +24,7 @@ export default function Navbar() {
     <header className="navbar">
       <div className="container">
         <NavLink to="/" className="brand" onClick={() => setOpen(false)}>
-          <span className="logo-mark">🌿</span>
-          {settings.business_name || "Aaiji Nursery"}
+          <img className="brand-logo" src={logoImg} alt={settings.business_name || "Shri Aaiji Hightech Nursery"} />
         </NavLink>
 
         <nav className={`nav-links ${open ? "open" : ""}`}>
@@ -41,6 +42,8 @@ export default function Navbar() {
             Get in Touch
           </NavLink>
         </nav>
+
+        <NavSearch />
 
         <button
           className="nav-toggle"
