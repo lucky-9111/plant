@@ -23,6 +23,24 @@
   margin-bottom: 16px;
 }
 
+.admin-logo-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #fff;
+  padding: 4px;
+  flex-shrink: 0;
+}
+
+.admin-logo-chip img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 .admin-nav a {
   display: flex;
   align-items: center;
@@ -176,6 +194,12 @@ table.admin-table .row-actions {
   width: 100%;
   max-width: 400px;
   box-shadow: var(--shadow-lg);
+}
+
+.admin-login-logo {
+  height: 72px;
+  width: auto;
+  display: block;
 }
 
 .thumb {

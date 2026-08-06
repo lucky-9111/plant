@@ -1,6 +1,7 @@
 import { Navigate, NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Loading } from "../components/Loading";
+import logoImg from "../assets/logo.png";
 
 const NAV = [
   { to: "/admin", label: "Dashboard", end: true },
@@ -26,7 +27,10 @@ export default function AdminLayout() {
     <div className="admin-shell">
       <aside className="admin-sidebar">
         <div className="brand">
-          <span className="logo-mark">🌿</span> Aaiji Nursery
+          <span className="admin-logo-chip">
+            <img src={logoImg} alt="Aaiji Nursery" />
+          </span>
+          Aaiji Nursery
         </div>
         <nav className="admin-nav">
           {NAV.map((item) => (

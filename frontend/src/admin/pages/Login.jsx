@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import logoImg from "../../assets/logo.png";
 
 export default function Login() {
   const { username, login } = useAuth();
@@ -29,7 +30,7 @@ export default function Login() {
     <div className="admin-login-shell">
       <div className="admin-login-card">
         <div className="brand" style={{ color: "var(--color-primary)", marginBottom: 20 }}>
-          <span className="logo-mark">🌿</span> Aaiji Nursery
+          <img src={logoImg} alt="Aaiji Nursery" className="admin-login-logo" />
         </div>
         <h1 style={{ fontSize: "1.3rem" }}>Admin Login</h1>
         {error && <div className="alert alert-error">{error}</div>}
