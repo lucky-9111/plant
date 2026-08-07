@@ -1,19 +1,24 @@
+import os
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import FileResponse
 from slugify import slugify
 from sqlalchemy.orm import Session, joinedload
 
-from app.auth import verify_password
-from app.database import get_db
-from app.deps import get_current_admin
+from app.auth import hash_password, verify_password
+from app.database import BASE_DIR, get_db
+from app.deps import get_current_admin, get_current_developer
 from app.models import (
     FAQ,
+    AdminActivityLog,
     AdminUser,
     BlogPost,
     Category,
+    Customer,
     GalleryImage,
     Inquiry,
+    Order,
     Plant,
     PricingPlan,
     Service,
@@ -21,6 +26,11 @@ from app.models import (
     Testimonial,
 )
 from app.schemas import (
+    ActivityLogOut,
+    AdminPasswordResetIn,
+    AdminRoleIn,
+    AdminUserCreateIn,
+    AdminUserOut,
     BlogPostIn,
     BlogPostOut,
     CategoryIn,
@@ -39,10 +49,16 @@ from app.schemas import (
     ServiceIn,
     ServiceOut,
     SettingsIn,
+    SystemInfoOut,
     TestimonialIn,
     TestimonialOut,
 )
 from app.settings_helper import get_settings
+
+
+def log_activity(db: Session, admin_username: str, action: str, detail: str = ""):
+    db.add(AdminActivityLog(admin_username=admin_username, action=action, detail=detail))
+    db.commit()
 
 router = APIRouter(prefix="/api/admin")
 
@@ -76,7 +92,8 @@ def login(payload: LoginIn, request: Request, db: Session = Depends(get_db)):
     if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid username or password")
     request.session["admin_username"] = user.username
-    return {"username": user.username}
+    log_activity(db, user.username, "login")
+    return {"username": user.username, "role": user.role}
 
 
 @router.post("/logout")
@@ -86,8 +103,119 @@ def logout(request: Request):
 
 
 @router.get("/me")
-def me(admin: str = Depends(get_current_admin)):
-    return {"username": admin}
+def me(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
+    user = db.query(AdminUser).filter(AdminUser.username == admin).first()
+    return {"username": admin, "role": user.role if user else "admin"}
+
+
+# ---------- Admin management ----------
+
+@router.get("/admins", response_model=list[AdminUserOut])
+def list_admins(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
+    return db.query(AdminUser).order_by(AdminUser.id).all()
+
+
+@router.post("/admins", response_model=AdminUserOut, status_code=201)
+def create_admin(
+    payload: AdminUserCreateIn,
+    admin: str = Depends(get_current_developer),
+    db: Session = Depends(get_db),
+):
+    username = payload.username.strip()
+    if not username or not payload.password:
+        raise HTTPException(status_code=400, detail="Username and password are required")
+    if payload.role not in ("admin", "developer"):
+        raise HTTPException(status_code=400, detail="Role must be 'admin' or 'developer'")
+    if db.query(AdminUser).filter(AdminUser.username == username).first():
+        raise HTTPException(status_code=400, detail="Username already exists")
+    item = AdminUser(username=username, hashed_password=hash_password(payload.password), role=payload.role)
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    log_activity(db, admin, "admin_created", username)
+    return item
+
+
+@router.put("/admins/{item_id}/password", response_model=AdminUserOut)
+def reset_admin_password(
+    item_id: int,
+    payload: AdminPasswordResetIn,
+    admin: str = Depends(get_current_developer),
+    db: Session = Depends(get_db),
+):
+    item = get_or_404(db, AdminUser, item_id)
+    if not payload.password:
+        raise HTTPException(status_code=400, detail="Password is required")
+    item.hashed_password = hash_password(payload.password)
+    db.commit()
+    log_activity(db, admin, "password_reset", item.username)
+    return item
+
+
+@router.put("/admins/{item_id}/role", response_model=AdminUserOut)
+def change_admin_role(
+    item_id: int,
+    payload: AdminRoleIn,
+    admin: str = Depends(get_current_developer),
+    db: Session = Depends(get_db),
+):
+    item = get_or_404(db, AdminUser, item_id)
+    if payload.role not in ("admin", "developer"):
+        raise HTTPException(status_code=400, detail="Role must be 'admin' or 'developer'")
+    if item.role == "developer" and payload.role != "developer":
+        remaining = db.query(AdminUser).filter(AdminUser.role == "developer", AdminUser.id != item_id).count()
+        if remaining == 0:
+            raise HTTPException(status_code=400, detail="Cannot demote the last remaining developer")
+    item.role = payload.role
+    db.commit()
+    log_activity(db, admin, "role_changed", f"{item.username} -> {payload.role}")
+    return item
+
+
+@router.delete("/admins/{item_id}", status_code=204)
+def delete_admin(
+    item_id: int,
+    admin: str = Depends(get_current_developer),
+    db: Session = Depends(get_db),
+):
+    item = get_or_404(db, AdminUser, item_id)
+    if item.username == admin:
+        raise HTTPException(status_code=400, detail="You cannot delete your own account")
+    if item.role == "developer":
+        remaining = db.query(AdminUser).filter(AdminUser.role == "developer", AdminUser.id != item_id).count()
+        if remaining == 0:
+            raise HTTPException(status_code=400, detail="Cannot delete the last remaining developer")
+    db.delete(item)
+    db.commit()
+    log_activity(db, admin, "admin_deleted", item.username)
+
+
+@router.get("/activity-log", response_model=list[ActivityLogOut])
+def list_activity_log(admin: str = Depends(get_current_developer), db: Session = Depends(get_db)):
+    return db.query(AdminActivityLog).order_by(AdminActivityLog.created_at.desc()).limit(100).all()
+
+
+@router.get("/system-info", response_model=SystemInfoOut)
+def system_info(admin: str = Depends(get_current_developer), db: Session = Depends(get_db)):
+    counts = {
+        "categories": db.query(Category).count(),
+        "plants": db.query(Plant).count(),
+        "services": db.query(Service).count(),
+        "testimonials": db.query(Testimonial).count(),
+        "gallery_images": db.query(GalleryImage).count(),
+        "blog_posts": db.query(BlogPost).count(),
+        "inquiries": db.query(Inquiry).count(),
+        "customers": db.query(Customer).count(),
+        "orders": db.query(Order).count(),
+        "admin_users": db.query(AdminUser).count(),
+    }
+    return SystemInfoOut(counts=counts, session_secret_is_default="SESSION_SECRET_KEY" not in os.environ)
+
+
+@router.get("/backup")
+def download_backup(admin: str = Depends(get_current_developer)):
+    db_path = BASE_DIR / "aaiji_nursery.db"
+    return FileResponse(db_path, filename="aaiji_nursery_backup.db", media_type="application/octet-stream")
 
 
 # ---------- Dashboard ----------

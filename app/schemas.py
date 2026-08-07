@@ -208,5 +208,177 @@ class LoginIn(BaseModel):
     password: str
 
 
+class AdminUserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    username: str
+    role: str
+    created_at: Optional[datetime] = None
+
+
+class AdminUserCreateIn(BaseModel):
+    username: str
+    password: str
+    role: str = "admin"
+
+
+class AdminPasswordResetIn(BaseModel):
+    password: str
+
+
+class AdminRoleIn(BaseModel):
+    role: str
+
+
+class ActivityLogOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    admin_username: str
+    action: str
+    detail: str
+    created_at: datetime
+
+
+class SystemInfoOut(BaseModel):
+    counts: dict[str, int]
+    session_secret_is_default: bool
+
+
 class SettingsIn(BaseModel):
     values: dict[str, str]
+
+
+# ---------- Customers / Cart / Orders ----------
+
+
+class CustomerOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    email: str
+    mobile: str
+
+
+class CustomerRegisterIn(BaseModel):
+    name: str
+    email: str
+    mobile: str = ""
+    password: str
+
+
+class CustomerLoginIn(BaseModel):
+    email: str
+    password: str
+
+
+class CartPlantOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    slug: str
+    image_url: str
+    effective_price: float
+    stock_quantity: int
+
+
+class CartItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    plant_id: int
+    quantity: int
+    plant: Optional[CartPlantOut] = None
+
+
+class CartAddIn(BaseModel):
+    plant_id: int
+    quantity: int = 1
+
+
+class CartUpdateIn(BaseModel):
+    quantity: int
+
+
+class CheckoutIn(BaseModel):
+    delivery_name: str
+    delivery_mobile: str
+    delivery_line1: str
+    delivery_line2: str = ""
+    delivery_city: str
+    delivery_state: str
+    delivery_pincode: str
+    payment_method: str = "COD"
+
+
+class OrderItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    plant_id: Optional[int] = None
+    plant_name: str
+    plant_image_url: str
+    unit_price: float
+    quantity: int
+    line_total: float
+
+
+class OrderStatusHistoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    old_status: Optional[str] = None
+    new_status: str
+    updated_by: str
+    remarks: str
+    created_at: datetime
+
+
+class OrderSummaryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    status: str
+    payment_status: str
+    total_amount: float
+    created_at: datetime
+    customer: Optional[CustomerOut] = None
+
+
+class OrderOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    status: str
+    payment_status: str
+    payment_method: str
+    subtotal: float
+    shipping_fee: float
+    total_amount: float
+    delivery_name: str
+    delivery_mobile: str
+    delivery_line1: str
+    delivery_line2: str
+    delivery_city: str
+    delivery_state: str
+    delivery_pincode: str
+    tracking_number: str
+    delivery_partner: str
+    expected_delivery_date: Optional[datetime] = None
+    delivered_at: Optional[datetime] = None
+    notes: str
+    created_at: datetime
+    updated_at: datetime
+    customer: Optional[CustomerOut] = None
+    items: List[OrderItemOut] = []
+    history: List[OrderStatusHistoryOut] = []
+
+
+class OrderCancelIn(BaseModel):
+    remarks: str = ""
+
+
+class OrderAdminUpdateIn(BaseModel):
+    status: Optional[str] = None
+    tracking_number: Optional[str] = None
+    delivery_partner: Optional[str] = None
+    expected_delivery_date: Optional[datetime] = None
+    payment_status: Optional[str] = None
+    notes: Optional[str] = None
+    remarks: str = ""

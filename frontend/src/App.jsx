@@ -27,6 +27,9 @@ import AdminGallery from "./admin/pages/Gallery";
 import AdminBlog from "./admin/pages/Blog";
 import AdminInquiries from "./admin/pages/Inquiries";
 import AdminSettings from "./admin/pages/Settings";
+import AdminAdmins from "./admin/pages/Admins";
+import AdminActivityLog from "./admin/pages/ActivityLog";
+import AdminSystemInfo from "./admin/pages/SystemInfo";
 
 export default function App() {
   return (
@@ -59,6 +62,9 @@ export default function App() {
         <Route path="blog" element={<AdminBlog />} />
         <Route path="inquiries" element={<AdminInquiries />} />
         <Route path="settings" element={<AdminSettings />} />
+        <Route path="admins" element={<AdminAdmins />} />
+        <Route path="developer/activity-log" element={<AdminActivityLog />} />
+        <Route path="developer/system-info" element={<AdminSystemInfo />} />
       </Route>
 
       <Route path="*" element={<NotFound />} />

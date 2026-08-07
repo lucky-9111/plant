@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -20,6 +21,16 @@ with engine.connect() as conn:
         conn.execute(text("ALTER TABLE inquiries ADD COLUMN plant_id INTEGER"))
         conn.commit()
 
+    admin_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(admin_users)"))}
+    if "role" not in admin_columns:
+        conn.execute(text("ALTER TABLE admin_users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'admin'"))
+        conn.commit()
+    if "created_at" not in admin_columns:
+        conn.execute(text("ALTER TABLE admin_users ADD COLUMN created_at DATETIME"))
+        conn.commit()
+    conn.execute(text("UPDATE admin_users SET role = 'developer' WHERE username = 'lucky'"))
+    conn.commit()
+
 app = FastAPI(title="Aaiji Nursery")
 
 
@@ -31,7 +42,10 @@ def serve_home():
         return FileResponse(FRONTEND_DIST / "index.html")
     return {"message": "Frontend not built"}
 
-app.add_middleware(SessionMiddleware, secret_key="aaiji-nursery-dev-secret-change-me")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.environ.get("SESSION_SECRET_KEY", "aaiji-nursery-dev-secret-change-me"),
+)
 
 app.include_router(api_public.router)
 app.include_router(api_admin.router)

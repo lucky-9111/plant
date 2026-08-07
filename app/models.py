@@ -9,10 +9,26 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+
+# Order lifecycle
+MAIN_STATUSES = [
+    "Pending",
+    "Confirmed",
+    "Processing",
+    "Packed",
+    "Shipped",
+    "Out For Delivery",
+    "Delivered",
+]
+EXTRA_STATUSES = ["Cancelled", "Refund Initiated", "Refund Completed", "Returned"]
+ALL_ORDER_STATUSES = MAIN_STATUSES + EXTRA_STATUSES
+CANCELLABLE_STATUSES = {"Pending", "Confirmed"}
+PAYMENT_STATUSES = ["Pending", "Paid", "Failed", "Refund Initiated", "Refund Completed"]
 
 
 class Category(Base):
@@ -165,3 +181,108 @@ class AdminUser(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(80), unique=True, nullable=False)
     hashed_password = Column(String(200), nullable=False)
+    role = Column(String(20), nullable=False, default="admin")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AdminActivityLog(Base):
+    __tablename__ = "admin_activity_log"
+
+    id = Column(Integer, primary_key=True, index=True)
+    admin_username = Column(String(80), nullable=False)
+    action = Column(String(50), nullable=False)
+    detail = Column(String(200), default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Customer(Base):
+    __tablename__ = "customers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(120), nullable=False)
+    email = Column(String(180), unique=True, nullable=False, index=True)
+    mobile = Column(String(30), default="")
+    hashed_password = Column(String(200), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class CartItem(Base):
+    __tablename__ = "cart_items"
+    __table_args__ = (UniqueConstraint("customer_id", "plant_id", name="uq_cart_customer_plant"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False, index=True)
+    plant_id = Column(Integer, ForeignKey("plants.id"), nullable=False, index=True)
+    quantity = Column(Integer, default=1)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    plant = relationship("Plant")
+
+
+class Order(Base):
+    __tablename__ = "orders"
+
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False, index=True)
+    status = Column(String(30), default="Pending", index=True)
+    payment_status = Column(String(30), default="Pending")
+    payment_method = Column(String(30), default="COD")
+
+    subtotal = Column(Float, default=0)
+    shipping_fee = Column(Float, default=0)
+    total_amount = Column(Float, default=0)
+
+    delivery_name = Column(String(120), default="")
+    delivery_mobile = Column(String(30), default="")
+    delivery_line1 = Column(String(200), default="")
+    delivery_line2 = Column(String(200), default="")
+    delivery_city = Column(String(100), default="")
+    delivery_state = Column(String(100), default="")
+    delivery_pincode = Column(String(20), default="")
+
+    tracking_number = Column(String(100), default="")
+    delivery_partner = Column(String(100), default="")
+    expected_delivery_date = Column(DateTime, nullable=True)
+    delivered_at = Column(DateTime, nullable=True)
+    notes = Column(Text, default="")
+
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    customer = relationship("Customer")
+    items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
+    history = relationship(
+        "OrderStatusHistory",
+        back_populates="order",
+        cascade="all, delete-orphan",
+        order_by="OrderStatusHistory.created_at",
+    )
+
+
+class OrderItem(Base):
+    __tablename__ = "order_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False, index=True)
+    plant_id = Column(Integer, ForeignKey("plants.id"), nullable=True)
+    plant_name = Column(String(150), default="")
+    plant_image_url = Column(String(300), default="")
+    unit_price = Column(Float, default=0)
+    quantity = Column(Integer, default=1)
+    line_total = Column(Float, default=0)
+
+    order = relationship("Order", back_populates="items")
+
+
+class OrderStatusHistory(Base):
+    __tablename__ = "order_status_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False, index=True)
+    old_status = Column(String(30), nullable=True)
+    new_status = Column(String(30), nullable=False)
+    updated_by = Column(String(80), default="")
+    remarks = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    order = relationship("Order", back_populates="history")

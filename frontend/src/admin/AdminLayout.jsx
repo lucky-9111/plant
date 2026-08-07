@@ -15,10 +15,16 @@ const NAV = [
   { to: "/admin/blog", label: "Blog" },
   { to: "/admin/inquiries", label: "Inquiries" },
   { to: "/admin/settings", label: "Site Settings" },
+  { to: "/admin/admins", label: "Admins" },
+];
+
+const DEVELOPER_NAV = [
+  { to: "/admin/developer/activity-log", label: "Activity Log" },
+  { to: "/admin/developer/system-info", label: "System Info" },
 ];
 
 export default function AdminLayout() {
-  const { username, logout } = useAuth();
+  const { username, role, logout } = useAuth();
 
   if (username === undefined) return <Loading />;
   if (username === null) return <Navigate to="/admin/login" replace />;
@@ -38,8 +44,24 @@ export default function AdminLayout() {
               {item.label}
             </NavLink>
           ))}
+          {role === "developer" && (
+            <>
+              <div className="admin-nav-heading">Developer</div>
+              {DEVELOPER_NAV.map((item) => (
+                <NavLink key={item.to} to={item.to}>
+                  {item.label}
+                </NavLink>
+              ))}
+            </>
+          )}
           <div className="logout-btn">
-            <a href="#" onClick={(e) => { e.preventDefault(); logout(); }}>
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                if (confirm("Are you sure you want to log out?")) logout();
+              }}
+            >
               Log Out
             </a>
           </div>
