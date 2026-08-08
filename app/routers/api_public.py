@@ -1,14 +1,17 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
+from app.auth import verify_password
 from app.database import get_db
 from app.models import (
     FAQ,
+    AdminUser,
     BlogPost,
     Category,
+    Customer,
     GalleryImage,
     Inquiry,
     Plant,
@@ -16,6 +19,7 @@ from app.models import (
     Service,
     Testimonial,
 )
+from app.routers.api_admin import log_activity
 from app.schemas import (
     BlogPostOut,
     CategoryOut,
@@ -27,6 +31,7 @@ from app.schemas import (
     PricingPlanOut,
     ServiceOut,
     TestimonialOut,
+    UnifiedLoginIn,
 )
 from app.settings_helper import get_settings
 
@@ -199,3 +204,54 @@ def create_inquiry(payload: InquiryIn, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(inquiry)
     return inquiry
+
+
+# ---------- Unified auth ----------
+
+
+@router.post("/auth/login")
+def unified_login(payload: UnifiedLoginIn, request: Request, db: Session = Depends(get_db)):
+    identifier = payload.identifier.strip()
+
+    admin = db.query(AdminUser).filter(AdminUser.username == identifier).first()
+    if admin:
+        if not verify_password(payload.password, admin.hashed_password):
+            raise HTTPException(status_code=401, detail="Invalid username or password")
+        request.session["admin_username"] = admin.username
+        request.session.pop("customer_id", None)
+        log_activity(db, admin.username, "login")
+        return {"type": admin.role, "username": admin.username}
+
+    customer = db.query(Customer).filter(Customer.email == identifier.lower()).first()
+    if customer:
+        if not verify_password(payload.password, customer.hashed_password):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        request.session["customer_id"] = customer.id
+        request.session.pop("admin_username", None)
+        return {"type": "customer", "id": customer.id, "name": customer.name, "email": customer.email}
+
+    raise HTTPException(status_code=401, detail="Invalid credentials")
+
+
+@router.post("/auth/logout")
+def unified_logout(request: Request):
+    request.session.pop("admin_username", None)
+    request.session.pop("customer_id", None)
+    return {"ok": True}
+
+
+@router.get("/auth/me")
+def unified_me(request: Request, db: Session = Depends(get_db)):
+    admin_username = request.session.get("admin_username")
+    if admin_username:
+        admin = db.query(AdminUser).filter(AdminUser.username == admin_username).first()
+        if admin:
+            return {"type": admin.role, "username": admin.username}
+
+    customer_id = request.session.get("customer_id")
+    if customer_id:
+        customer = db.query(Customer).filter(Customer.id == customer_id).first()
+        if customer:
+            return {"type": "customer", "id": customer.id, "name": customer.name, "email": customer.email}
+
+    raise HTTPException(status_code=401, detail="Not authenticated")

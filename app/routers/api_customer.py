@@ -1,3 +1,6 @@
+import secrets
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session, joinedload
 
@@ -13,7 +16,7 @@ from app.models import (
     OrderStatusHistory,
     Plant,
 )
-from app.notifications import notify_order_status
+from app.notifications import notify_order_status, send_email
 from app.schemas import (
     CartAddIn,
     CartItemOut,
@@ -22,9 +25,11 @@ from app.schemas import (
     CustomerLoginIn,
     CustomerOut,
     CustomerRegisterIn,
+    ForgotPasswordIn,
     OrderCancelIn,
     OrderOut,
     OrderSummaryOut,
+    ResetPasswordIn,
 )
 
 router = APIRouter(prefix="/api/customer")
@@ -60,6 +65,7 @@ def register(payload: CustomerRegisterIn, request: Request, db: Session = Depend
     db.add(customer)
     db.commit()
     db.refresh(customer)
+    request.session.pop("admin_username", None)
     request.session["customer_id"] = customer.id
     return customer
 
@@ -70,6 +76,7 @@ def login(payload: CustomerLoginIn, request: Request, db: Session = Depends(get_
     customer = db.query(Customer).filter(Customer.email == email).first()
     if not customer or not verify_password(payload.password, customer.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    request.session.pop("admin_username", None)
     request.session["customer_id"] = customer.id
     return customer
 
@@ -77,6 +84,36 @@ def login(payload: CustomerLoginIn, request: Request, db: Session = Depends(get_
 @router.post("/logout")
 def logout(request: Request):
     request.session.pop("customer_id", None)
+    return {"ok": True}
+
+
+@router.post("/forgot-password")
+def forgot_password(payload: ForgotPasswordIn, request: Request, db: Session = Depends(get_db)):
+    email = payload.email.strip().lower()
+    customer = db.query(Customer).filter(Customer.email == email).first()
+    if customer:
+        token = secrets.token_urlsafe(32)
+        customer.reset_token = token
+        customer.reset_token_expires = datetime.utcnow() + timedelta(hours=1)
+        db.commit()
+
+        link = f"{request.base_url}reset-password?token={token}"
+        print(f"[password-reset] {customer.email}: {link}")
+        send_email(customer.email, "Reset your password", f"Click to reset your password: {link}")
+
+    return {"ok": True}
+
+
+@router.post("/reset-password")
+def reset_password(payload: ResetPasswordIn, db: Session = Depends(get_db)):
+    customer = db.query(Customer).filter(Customer.reset_token == payload.token).first()
+    if not customer or not customer.reset_token_expires or customer.reset_token_expires < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Invalid or expired reset link")
+
+    customer.hashed_password = hash_password(payload.password)
+    customer.reset_token = None
+    customer.reset_token_expires = None
+    db.commit()
     return {"ok": True}
 
 

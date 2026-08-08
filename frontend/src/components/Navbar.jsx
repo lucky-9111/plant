@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import { useSettings } from "../context/SettingsContext";
 import NavSearch from "./NavSearch";
 import logoImg from "../assets/logo.png";
@@ -19,6 +20,13 @@ const LINKS = [
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const settings = useSettings();
+  const { session, logout } = useAuth();
+  const navigate = useNavigate();
+
+  async function handleLogout() {
+    await logout();
+    navigate("/");
+  }
 
   return (
     <header className="navbar">
@@ -43,7 +51,40 @@ export default function Navbar() {
           </NavLink>
         </nav>
 
-        <NavSearch />
+        <div className="nav-actions">
+          <NavSearch />
+
+          {session === undefined ? null : session === null ? (
+            <NavLink to="/login" className="nav-login-btn" onClick={() => setOpen(false)}>
+              <span className="nav-login-icon" aria-hidden="true">
+                &#128100;
+              </span>
+              <span className="nav-login-text">Login</span>
+            </NavLink>
+          ) : session.type === "customer" ? (
+            <div className="nav-account">
+              <span className="nav-account-avatar" aria-hidden="true">
+                {(session.name || "U").charAt(0).toUpperCase()}
+              </span>
+              <span className="nav-account-name">{session.name}</span>
+              <button type="button" className="nav-account-logout" onClick={handleLogout}>
+                Logout
+              </button>
+            </div>
+          ) : (
+            <div className="nav-account">
+              <NavLink to="/admin" className="nav-account-link" onClick={() => setOpen(false)}>
+                <span className="nav-account-avatar" aria-hidden="true">
+                  &#128100;
+                </span>
+                <span className="nav-account-name">Dashboard</span>
+              </NavLink>
+              <button type="button" className="nav-account-logout" onClick={handleLogout}>
+                Logout
+              </button>
+            </div>
+          )}
+        </div>
 
         <button
           className="nav-toggle"

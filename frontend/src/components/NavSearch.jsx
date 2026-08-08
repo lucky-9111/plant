@@ -15,17 +15,16 @@ export default function NavSearch() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (open) inputRef.current?.focus();
-  }, [open]);
-
-  useEffect(() => {
     function handleClickOutside(e) {
       if (containerRef.current && !containerRef.current.contains(e.target)) {
         setOpen(false);
       }
     }
     function handleEscape(e) {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        setOpen(false);
+        inputRef.current?.blur();
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleEscape);
@@ -55,6 +54,7 @@ export default function NavSearch() {
   function closeAndReset() {
     setOpen(false);
     setQuery("");
+    inputRef.current?.blur();
   }
 
   function goToAllResults() {
@@ -69,78 +69,82 @@ export default function NavSearch() {
     navigate(`/plants/${slug}`);
   }
 
+  const showDropdown = open && query.trim().length > 0;
+
   return (
     <div className={`nav-search ${open ? "open" : ""}`} ref={containerRef}>
-      <button
-        type="button"
-        className="nav-search-toggle"
-        aria-label="Search plants"
-        onClick={() => setOpen((v) => !v)}
+      <form
+        className="nav-search-bar"
+        role="search"
+        onSubmit={(e) => {
+          e.preventDefault();
+          goToAllResults();
+        }}
       >
-        &#128269;
-      </button>
-
-      {open && (
-        <form
-          className="nav-search-panel"
-          onSubmit={(e) => {
-            e.preventDefault();
-            goToAllResults();
-          }}
+        <button
+          type="button"
+          className="nav-search-icon"
+          aria-label="Search"
+          onClick={() => inputRef.current?.focus()}
         >
-          <div className="nav-search-inputrow">
-            <span className="nav-search-icon" aria-hidden="true">
-              &#128269;
-            </span>
-            <input
-              ref={inputRef}
-              type="search"
-              className="nav-search-input"
-              placeholder="Search plants e.g. rose, cactus..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              aria-label="Search plants"
-            />
-            <button
-              type="button"
-              className="nav-search-close"
-              aria-label="Close search"
-              onClick={closeAndReset}
-            >
-              &times;
-            </button>
-          </div>
+          &#128269;
+        </button>
+        <input
+          ref={inputRef}
+          type="search"
+          className="nav-search-input"
+          placeholder="Search plants, products..."
+          value={query}
+          onFocus={() => setOpen(true)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+          }}
+          aria-label="Search plants"
+        />
+        {query && (
+          <button
+            type="button"
+            className="nav-search-clear"
+            aria-label="Clear search"
+            onClick={() => {
+              setQuery("");
+              inputRef.current?.focus();
+            }}
+          >
+            &times;
+          </button>
+        )}
+      </form>
 
-          {query.trim() && (
-            <div className="nav-search-dropdown">
-              {loading ? (
-                <div className="nav-search-status">Searching...</div>
-              ) : suggestions.length === 0 ? (
-                <div className="nav-search-status">No plants found for "{query.trim()}"</div>
-              ) : (
-                <>
-                  {suggestions.map((plant) => (
-                    <button
-                      type="button"
-                      key={plant.id}
-                      className="nav-search-item"
-                      onClick={() => selectPlant(plant.slug)}
-                    >
-                      <img src={plant.image_url} alt="" />
-                      <span className="nav-search-item-info">
-                        <strong>{plant.name}</strong>
-                        <span className="nav-search-item-price">&#8377;{plant.effective_price}</span>
-                      </span>
-                    </button>
-                  ))}
-                  <button type="button" className="nav-search-viewall" onClick={goToAllResults}>
-                    View all results for "{query.trim()}" &rarr;
-                  </button>
-                </>
-              )}
-            </div>
+      {showDropdown && (
+        <div className="nav-search-dropdown">
+          {loading ? (
+            <div className="nav-search-status">Searching...</div>
+          ) : suggestions.length === 0 ? (
+            <div className="nav-search-status">No plants found for "{query.trim()}"</div>
+          ) : (
+            <>
+              {suggestions.map((plant) => (
+                <button
+                  type="button"
+                  key={plant.id}
+                  className="nav-search-item"
+                  onClick={() => selectPlant(plant.slug)}
+                >
+                  <img src={plant.image_url} alt="" />
+                  <span className="nav-search-item-info">
+                    <strong>{plant.name}</strong>
+                    <span className="nav-search-item-price">&#8377;{plant.effective_price}</span>
+                  </span>
+                </button>
+              ))}
+              <button type="button" className="nav-search-viewall" onClick={goToAllResults}>
+                View all results for "{query.trim()}" &rarr;
+              </button>
+            </>
           )}
-        </form>
+        </div>
       )}
     </div>
   );

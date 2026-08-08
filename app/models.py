@@ -203,6 +203,8 @@ class Customer(Base):
     email = Column(String(180), unique=True, nullable=False, index=True)
     mobile = Column(String(30), default="")
     hashed_password = Column(String(200), nullable=False)
+    reset_token = Column(String(100), nullable=True, index=True)
+    reset_token_expires = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

@@ -1,6 +1,10 @@
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -8,7 +12,7 @@ from sqlalchemy import text
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.database import Base, engine
-from app.routers import api_admin, api_public
+from app.routers import api_admin, api_customer, api_public
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
@@ -31,6 +35,14 @@ with engine.connect() as conn:
     conn.execute(text("UPDATE admin_users SET role = 'developer' WHERE username = 'lucky'"))
     conn.commit()
 
+    customer_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(customers)"))}
+    if "reset_token" not in customer_columns:
+        conn.execute(text("ALTER TABLE customers ADD COLUMN reset_token VARCHAR(100)"))
+        conn.commit()
+    if "reset_token_expires" not in customer_columns:
+        conn.execute(text("ALTER TABLE customers ADD COLUMN reset_token_expires DATETIME"))
+        conn.commit()
+
 app = FastAPI(title="Aaiji Nursery")
 
 
@@ -49,6 +61,7 @@ app.add_middleware(
 
 app.include_router(api_public.router)
 app.include_router(api_admin.router)
+app.include_router(api_customer.router)
 
 if FRONTEND_DIST.exists():
     app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")

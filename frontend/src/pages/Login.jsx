@@ -1,24 +1,30 @@
 import { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
-import { useAuth } from "../../context/AuthContext";
-import logoImg from "../../assets/logo.png";
+import { Link, Navigate, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import logoImg from "../assets/logo.png";
 
 export default function Login() {
-  const { username, login } = useAuth();
+  const { session, login } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ username: "", password: "" });
+  const [form, setForm] = useState({ identifier: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  if (username) return <Navigate to="/admin" replace />;
+  if (session === null) {
+    // not logged in, show the form below
+  } else if (session) {
+    const isAdminType = session.type === "admin" || session.type === "developer";
+    return <Navigate to={isAdminType ? "/admin" : "/"} replace />;
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
     setLoading(true);
     setError("");
     try {
-      await login(form.username, form.password);
-      navigate("/admin", { replace: true });
+      const data = await login(form.identifier, form.password);
+      const isAdminType = data.type === "admin" || data.type === "developer";
+      navigate(isAdminType ? "/admin" : "/", { replace: true });
     } catch (err) {
       setError(err.message || "Login failed.");
     } finally {
@@ -29,21 +35,21 @@ export default function Login() {
   return (
     <div className="admin-login-shell">
       <div className="admin-login-card">
-        <div className="brand" style={{ color: "var(--color-primary)", marginBottom: 20 }}>
+        <Link to="/" className="brand" style={{ color: "var(--color-primary)", marginBottom: 20 }}>
           <img src={logoImg} alt="Aaiji Nursery" className="admin-login-logo" />
-        </div>
-        <h1 style={{ fontSize: "1.3rem" }}>Admin Login</h1>
+        </Link>
+        <h1 style={{ fontSize: "1.3rem" }}>Login</h1>
         {error && <div className="alert alert-error">{error}</div>}
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="identifier">Email or Username</label>
             <input
-              id="username"
+              id="identifier"
               className="form-control"
               required
               autoFocus
-              value={form.username}
-              onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
+              value={form.identifier}
+              onChange={(e) => setForm((f) => ({ ...f, identifier: e.target.value }))}
             />
           </div>
           <div className="form-group">
@@ -57,10 +63,16 @@ export default function Login() {
               onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
             />
           </div>
+          <p style={{ textAlign: "right", marginTop: -8, marginBottom: 16, fontSize: "0.85rem" }}>
+            <Link to="/forgot-password">Forgot password?</Link>
+          </p>
           <button className="btn btn-primary btn-block" disabled={loading}>
             {loading ? "Signing in..." : "Sign In"}
           </button>
         </form>
+        <p style={{ marginTop: 16, fontSize: "0.9rem", textAlign: "center" }}>
+          New here? <Link to="/signup">Create an account</Link>
+        </p>
       </div>
     </div>
   );

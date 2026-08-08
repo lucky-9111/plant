@@ -27,7 +27,7 @@ export default function AdminLayout() {
   const { username, role, logout } = useAuth();
 
   if (username === undefined) return <Loading />;
-  if (username === null) return <Navigate to="/admin/login" replace />;
+  if (username === null) return <Navigate to="/login" replace />;
 
   return (
     <div className="admin-shell">

@@ -208,6 +208,11 @@ class LoginIn(BaseModel):
     password: str
 
 
+class UnifiedLoginIn(BaseModel):
+    identifier: str
+    password: str
+
+
 class AdminUserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -270,6 +275,15 @@ class CustomerRegisterIn(BaseModel):
 
 class CustomerLoginIn(BaseModel):
     email: str
+    password: str
+
+
+class ForgotPasswordIn(BaseModel):
+    email: str
+
+
+class ResetPasswordIn(BaseModel):
+    token: str
     password: str
 
 

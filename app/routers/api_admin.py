@@ -91,6 +91,7 @@ def login(payload: LoginIn, request: Request, db: Session = Depends(get_db)):
     user = db.query(AdminUser).filter(AdminUser.username == payload.username.strip()).first()
     if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid username or password")
+    request.session.pop("customer_id", None)
     request.session["admin_username"] = user.username
     log_activity(db, user.username, "login")
     return {"username": user.username, "role": user.role}
