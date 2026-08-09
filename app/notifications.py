@@ -1,8 +1,19 @@
 import os
 import smtplib
+import socket
 import urllib.parse
 import urllib.request
 from email.mime.text import MIMEText
+
+
+class _IPv4SMTP(smtplib.SMTP):
+    """Some hosts (e.g. Render) advertise IPv6 but can't actually route it,
+    causing 'Network is unreachable' against Gmail's dual-stack SMTP. Force
+    the socket to resolve via IPv4 while keeping the hostname for TLS SNI."""
+
+    def _get_socket(self, host, port, timeout):
+        ipv4_host = socket.gethostbyname(host)
+        return socket.create_connection((ipv4_host, port), timeout, self.source_address)
 
 
 def send_email(to_email: str, subject: str, body: str) -> None:
@@ -25,7 +36,7 @@ def send_email(to_email: str, subject: str, body: str) -> None:
         msg["From"] = sender
         msg["To"] = to_email
 
-        with smtplib.SMTP(host, port, timeout=10) as server:
+        with _IPv4SMTP(host, port, timeout=10) as server:
             server.starttls()
             if user:
                 server.login(user, password)
