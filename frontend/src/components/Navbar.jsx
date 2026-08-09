@@ -51,6 +51,7 @@ export default function Navbar() {
           </NavLink>
         </nav>
 
+        <div className="nav-right">
         <div className="nav-actions">
           <NavSearch />
 
@@ -95,6 +96,7 @@ export default function Navbar() {
           <span style={open ? { opacity: 0 } : undefined} />
           <span style={open ? { transform: "translateY(-7px) rotate(-45deg)" } : undefined} />
         </button>
+        </div>
       </div>
     </header>
   );
