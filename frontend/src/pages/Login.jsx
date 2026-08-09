@@ -73,6 +73,9 @@ export default function Login() {
         <p style={{ marginTop: 16, fontSize: "0.9rem", textAlign: "center" }}>
           New here? <Link to="/signup">Create an account</Link>
         </p>
+        <p style={{ marginTop: 8, fontSize: "0.9rem", textAlign: "center" }}>
+          <Link to="/">Back to Home</Link>
+        </p>
       </div>
     </div>
   );
