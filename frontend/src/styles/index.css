@@ -448,9 +448,16 @@ select:focus-visible {
 }
 
 @media (max-width: 1100px) {
+  .navbar .container {
+    height: 72px;
+    gap: 10px;
+  }
+  .brand-logo {
+    height: 52px;
+  }
   .nav-links {
     position: fixed;
-    inset: 112px 0 0 0;
+    inset: 72px 0 0 0;
     background: var(--color-surface);
     flex-direction: column;
     align-items: flex-start;
@@ -470,7 +477,7 @@ select:focus-visible {
     display: none;
   }
   .nav-actions {
-    gap: 10px;
+    gap: 12px;
   }
 }
 
@@ -672,12 +679,13 @@ select:focus-visible {
   }
 
   .nav-search:focus-within .nav-search-bar {
-    width: min(80vw, 300px);
+    width: auto;
     padding: 0 8px 0 12px;
     justify-content: flex-start;
-    position: absolute;
-    top: 0;
-    right: 0;
+    position: fixed;
+    top: 15px;
+    left: 12px;
+    right: 56px;
     z-index: 130;
   }
 
@@ -692,7 +700,7 @@ select:focus-visible {
 
   .nav-search-dropdown {
     position: fixed;
-    top: 112px;
+    top: 72px;
     left: 12px;
     right: 12px;
     width: auto;
