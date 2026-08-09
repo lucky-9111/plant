@@ -552,6 +552,12 @@ select:focus-visible {
   color: var(--color-text);
 }
 
+.nav-search-icon:focus-visible,
+.nav-search-input:focus-visible,
+.nav-search-clear:focus-visible {
+  outline: none;
+}
+
 .nav-search-input::placeholder {
   color: var(--color-text-muted);
 }
