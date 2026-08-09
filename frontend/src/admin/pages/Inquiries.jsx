@@ -56,7 +56,14 @@ export default function Inquiries() {
                   <td>{item.mobile}</td>
                   <td>
                     {item.plant ? (
-                      <span className="badge badge-accent">{item.plant.name}</span>
+                      <a
+                        className="btn btn-sm btn-outline dark"
+                        href={`/plants/${item.plant.slug}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Visit &rarr;
+                      </a>
                     ) : (
                       <span className="badge badge-muted">General</span>
                     )}
