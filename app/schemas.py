@@ -264,6 +264,7 @@ class CustomerOut(BaseModel):
     name: str
     email: str
     mobile: str
+    created_at: Optional[datetime] = None
 
 
 class CustomerRegisterIn(BaseModel):
@@ -323,6 +324,8 @@ class CheckoutIn(BaseModel):
     delivery_state: str
     delivery_pincode: str
     payment_method: str = "COD"
+    buy_now_plant_id: Optional[int] = None
+    buy_now_quantity: int = 1
 
 
 class OrderItemOut(BaseModel):

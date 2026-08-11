@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useCart } from "../context/CartContext";
 import { useSettings } from "../context/SettingsContext";
 import NavSearch from "./NavSearch";
 import logoImg from "../assets/logo.png";
@@ -21,6 +22,7 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
   const settings = useSettings();
   const { session, logout } = useAuth();
+  const { cartCount } = useCart();
   const navigate = useNavigate();
 
   async function handleLogout() {
@@ -55,6 +57,13 @@ export default function Navbar() {
         <div className="nav-actions">
           <NavSearch />
 
+          {session?.type === "customer" && (
+            <NavLink to="/cart" className="nav-cart-link" onClick={() => setOpen(false)} aria-label="My Cart">
+              <span aria-hidden="true">&#128722;</span>
+              {cartCount > 0 && <span className="nav-cart-count">{cartCount}</span>}
+            </NavLink>
+          )}
+
           {session === undefined ? null : session === null ? (
             <NavLink to="/login" className="nav-login-btn" onClick={() => setOpen(false)}>
               <span className="nav-login-icon" aria-hidden="true">
@@ -64,10 +73,12 @@ export default function Navbar() {
             </NavLink>
           ) : session.type === "customer" ? (
             <div className="nav-account">
-              <span className="nav-account-avatar" aria-hidden="true">
-                {(session.name || "U").charAt(0).toUpperCase()}
-              </span>
-              <span className="nav-account-name">{session.name}</span>
+              <NavLink to="/account" className="nav-account-link" onClick={() => setOpen(false)}>
+                <span className="nav-account-avatar" aria-hidden="true">
+                  {(session.name || "U").charAt(0).toUpperCase()}
+                </span>
+                <span className="nav-account-name">{session.name}</span>
+              </NavLink>
               <button type="button" className="nav-account-logout" onClick={handleLogout}>
                 Logout
               </button>

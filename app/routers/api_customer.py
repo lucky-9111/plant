@@ -222,23 +222,42 @@ def checkout(
     customer_id: int = Depends(get_current_customer),
     db: Session = Depends(get_db),
 ):
-    cart_items = (
-        db.query(CartItem)
-        .options(joinedload(CartItem.plant))
-        .filter(CartItem.customer_id == customer_id)
-        .all()
-    )
-    if not cart_items:
-        raise HTTPException(status_code=400, detail="Your cart is empty")
+    buy_now = payload.buy_now_plant_id is not None
+    clear_cart = not buy_now
 
-    for cart_item in cart_items:
-        plant = cart_item.plant
-        if not plant or not plant.is_active:
-            raise HTTPException(status_code=400, detail=f"{plant.name if plant else 'A plant'} is no longer available")
-        if plant.stock_quantity < cart_item.quantity:
+    if buy_now:
+        if payload.buy_now_quantity < 1:
+            raise HTTPException(status_code=400, detail="Quantity must be at least 1")
+        plant = (
+            db.query(Plant)
+            .filter(Plant.id == payload.buy_now_plant_id, Plant.is_active.is_(True))
+            .first()
+        )
+        if not plant:
+            raise HTTPException(status_code=404, detail="Plant not found")
+        if plant.stock_quantity < payload.buy_now_quantity:
             raise HTTPException(status_code=400, detail=f"Insufficient stock for {plant.name}")
+        order_lines = [(plant, payload.buy_now_quantity)]
+    else:
+        cart_items = (
+            db.query(CartItem)
+            .options(joinedload(CartItem.plant))
+            .filter(CartItem.customer_id == customer_id)
+            .all()
+        )
+        if not cart_items:
+            raise HTTPException(status_code=400, detail="Your cart is empty")
 
-    subtotal = sum(item.plant.effective_price * item.quantity for item in cart_items)
+        for cart_item in cart_items:
+            plant = cart_item.plant
+            if not plant or not plant.is_active:
+                raise HTTPException(status_code=400, detail=f"{plant.name if plant else 'A plant'} is no longer available")
+            if plant.stock_quantity < cart_item.quantity:
+                raise HTTPException(status_code=400, detail=f"Insufficient stock for {plant.name}")
+
+        order_lines = [(cart_item.plant, cart_item.quantity) for cart_item in cart_items]
+
+    subtotal = sum(plant.effective_price * quantity for plant, quantity in order_lines)
 
     order = Order(
         customer_id=customer_id,
@@ -259,8 +278,7 @@ def checkout(
     db.add(order)
     db.flush()
 
-    for cart_item in cart_items:
-        plant = cart_item.plant
+    for plant, quantity in order_lines:
         db.add(
             OrderItem(
                 order_id=order.id,
@@ -268,11 +286,11 @@ def checkout(
                 plant_name=plant.name,
                 plant_image_url=plant.image_url,
                 unit_price=plant.effective_price,
-                quantity=cart_item.quantity,
-                line_total=plant.effective_price * cart_item.quantity,
+                quantity=quantity,
+                line_total=plant.effective_price * quantity,
             )
         )
-        plant.stock_quantity -= cart_item.quantity
+        plant.stock_quantity -= quantity
 
     db.add(
         OrderStatusHistory(
@@ -283,7 +301,8 @@ def checkout(
             remarks="Order placed",
         )
     )
-    db.query(CartItem).filter(CartItem.customer_id == customer_id).delete()
+    if clear_cart:
+        db.query(CartItem).filter(CartItem.customer_id == customer_id).delete()
     db.commit()
 
     order = get_or_404_order(db, order.id, customer_id)

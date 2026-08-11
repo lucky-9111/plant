@@ -4,6 +4,10 @@ import Home from "./pages/Home";
 import About from "./pages/About";
 import Plants from "./pages/Plants";
 import PlantDetail from "./pages/PlantDetail";
+import Cart from "./pages/Cart";
+import Checkout from "./pages/Checkout";
+import Account from "./pages/Account";
+import Orders from "./pages/Orders";
 import Services from "./pages/Services";
 import Pricing from "./pages/Pricing";
 import FAQs from "./pages/FAQs";
@@ -42,6 +46,10 @@ export default function App() {
         <Route path="/about" element={<About />} />
         <Route path="/plants" element={<Plants />} />
         <Route path="/plants/:slug" element={<PlantDetail />} />
+        <Route path="/cart" element={<Cart />} />
+        <Route path="/checkout" element={<Checkout />} />
+        <Route path="/account" element={<Account />} />
+        <Route path="/orders" element={<Orders />} />
         <Route path="/services" element={<Services />} />
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/faqs" element={<FAQs />} />
