@@ -14,6 +14,7 @@ const NAV = [
   { to: "/admin/gallery", label: "Gallery" },
   { to: "/admin/blog", label: "Blog" },
   { to: "/admin/inquiries", label: "Inquiries" },
+  { to: "/admin/customers", label: "Customers" },
   { to: "/admin/settings", label: "Site Settings" },
   { to: "/admin/admins", label: "Admins" },
 ];

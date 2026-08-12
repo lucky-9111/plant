@@ -43,7 +43,6 @@ class Category(Base):
 
     plants = relationship("Plant", back_populates="category", cascade="all, delete-orphan")
 
-
 class Plant(Base):
     __tablename__ = "plants"
 
@@ -274,6 +273,11 @@ class OrderItem(Base):
     line_total = Column(Float, default=0)
 
     order = relationship("Order", back_populates="items")
+    plant = relationship("Plant")
+
+    @property
+    def plant_slug(self):
+        return self.plant.slug if self.plant else None
 
 
 class OrderStatusHistory(Base):

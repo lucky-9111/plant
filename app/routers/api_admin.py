@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from slugify import slugify
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.auth import hash_password, verify_password
@@ -19,6 +20,7 @@ from app.models import (
     GalleryImage,
     Inquiry,
     Order,
+    OrderItem,
     Plant,
     PricingPlan,
     Service,
@@ -35,6 +37,9 @@ from app.schemas import (
     BlogPostOut,
     CategoryIn,
     CategoryOut,
+    CustomerAdminDetailOut,
+    CustomerAdminOut,
+    CustomerOrderOut,
     FAQIn,
     FAQOut,
     GalleryImageIn,
@@ -711,6 +716,51 @@ def delete_inquiry(
     item = get_or_404(db, Inquiry, item_id)
     db.delete(item)
     db.commit()
+
+
+# ---------- Customers ----------
+
+@router.get("/customers", response_model=list[CustomerAdminOut])
+def list_customers(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
+    customers = db.query(Customer).order_by(Customer.created_at.desc()).all()
+    order_counts = dict(
+        db.query(Order.customer_id, func.count(Order.id)).group_by(Order.customer_id).all()
+    )
+    return [
+        CustomerAdminOut(
+            id=c.id,
+            name=c.name,
+            email=c.email,
+            mobile=c.mobile,
+            created_at=c.created_at,
+            order_count=order_counts.get(c.id, 0),
+        )
+        for c in customers
+    ]
+
+
+@router.get("/customers/{item_id}", response_model=CustomerAdminDetailOut)
+def get_customer(
+    item_id: int, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
+):
+    customer = get_or_404(db, Customer, item_id)
+    orders = (
+        db.query(Order)
+        .options(joinedload(Order.items).joinedload(OrderItem.plant))
+        .filter(Order.customer_id == item_id)
+        .order_by(Order.created_at.desc())
+        .all()
+    )
+    return CustomerAdminDetailOut(
+        id=customer.id,
+        name=customer.name,
+        email=customer.email,
+        mobile=customer.mobile,
+        created_at=customer.created_at,
+        total_orders=len(orders),
+        total_spent=sum(o.total_amount for o in orders),
+        orders=[CustomerOrderOut.model_validate(o) for o in orders],
+    )
 
 
 # ---------- Settings ----------

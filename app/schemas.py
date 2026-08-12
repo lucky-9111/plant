@@ -334,6 +334,7 @@ class OrderItemOut(BaseModel):
     plant_id: Optional[int] = None
     plant_name: str
     plant_image_url: str
+    plant_slug: Optional[str] = None
     unit_price: float
     quantity: int
     line_total: float
@@ -389,6 +390,32 @@ class OrderOut(BaseModel):
 
 class OrderCancelIn(BaseModel):
     remarks: str = ""
+
+
+class CustomerAdminOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    email: str
+    mobile: str
+    created_at: Optional[datetime] = None
+    order_count: int = 0
+
+
+class CustomerOrderOut(OrderSummaryOut):
+    items: List[OrderItemOut] = []
+
+
+class CustomerAdminDetailOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    email: str
+    mobile: str
+    created_at: Optional[datetime] = None
+    total_orders: int = 0
+    total_spent: float = 0
+    orders: List[CustomerOrderOut] = []
 
 
 class OrderAdminUpdateIn(BaseModel):
