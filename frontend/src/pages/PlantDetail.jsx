@@ -4,6 +4,7 @@ import { api } from "../api";
 import PlantCard from "../components/PlantCard";
 import AddToCartButton from "../components/AddToCartButton";
 import BuyNowButton from "../components/BuyNowButton";
+import WishlistButton from "../components/WishlistButton";
 import { Loading, Empty } from "../components/Loading";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
@@ -81,6 +82,7 @@ export default function PlantDetail() {
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                 <AddToCartButton plant={plant} />
                 <BuyNowButton plant={plant} />
+                <WishlistButton plant={plant} />
                 <Link
                   to={`/contact?plant_id=${plant.id}&plant_name=${encodeURIComponent(plant.name)}`}
                   className="btn btn-outline dark"

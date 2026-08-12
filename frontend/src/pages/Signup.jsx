@@ -2,11 +2,13 @@ import { useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
+import { useWishlist } from "../context/WishlistContext";
 import logoImg from "../assets/logo.png";
 
 export default function Signup() {
   const { session, register } = useAuth();
   const { resumePendingAction } = useCart();
+  const { resumePendingAction: resumeWishlistPendingAction } = useWishlist();
   const navigate = useNavigate();
   const location = useLocation();
   const [form, setForm] = useState({ name: "", email: "", mobile: "", password: "" });
@@ -33,6 +35,7 @@ export default function Signup() {
       await register(form);
       navigatedRef.current = true;
       const resumed = await resumePendingAction();
+      await resumeWishlistPendingAction();
       if (resumed?.navigateTo) {
         navigate(resumed.navigateTo, { state: resumed.state, replace: true });
       } else {

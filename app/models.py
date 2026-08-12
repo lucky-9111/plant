@@ -220,6 +220,18 @@ class CartItem(Base):
     plant = relationship("Plant")
 
 
+class WishlistItem(Base):
+    __tablename__ = "wishlist_items"
+    __table_args__ = (UniqueConstraint("customer_id", "plant_id", name="uq_wishlist_customer_plant"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False, index=True)
+    plant_id = Column(Integer, ForeignKey("plants.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    plant = relationship("Plant")
+
+
 class Order(Base):
     __tablename__ = "orders"
 

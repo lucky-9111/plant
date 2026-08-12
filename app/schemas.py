@@ -315,6 +315,22 @@ class CartUpdateIn(BaseModel):
     quantity: int
 
 
+class WishlistItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    plant_id: int
+    created_at: datetime
+    plant: Optional[CartPlantOut] = None
+
+
+class WishlistAddIn(BaseModel):
+    plant_id: int
+
+
+class WishlistStatusOut(BaseModel):
+    in_wishlist: bool
+
+
 class CheckoutIn(BaseModel):
     delivery_name: str
     delivery_mobile: str

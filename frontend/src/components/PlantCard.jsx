@@ -1,10 +1,12 @@
 import { Link } from "react-router-dom";
 import AddToCartButton from "./AddToCartButton";
 import BuyNowButton from "./BuyNowButton";
+import WishlistButton from "./WishlistButton";
 
 export default function PlantCard({ plant }) {
   return (
     <div className="card">
+      <WishlistButton plant={plant} iconOnly className="card-wishlist-btn" />
       <Link to={`/plants/${plant.slug}`} className="card-link">
         <img src={plant.image_url} alt={plant.name} loading="lazy" />
         <div className="card-body">

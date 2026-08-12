@@ -168,6 +168,7 @@ export function CartProvider({ children }) {
         removeItem,
         toast,
         clearToast,
+        showToast,
       }}
     >
       {children}

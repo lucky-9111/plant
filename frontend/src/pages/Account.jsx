@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
+import { useWishlist } from "../context/WishlistContext";
 import { Loading } from "../components/Loading";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
@@ -10,6 +11,7 @@ export default function Account() {
   useDocumentTitle("My Account | Aaiji Nursery");
   const { session, logout } = useAuth();
   const { cartCount } = useCart();
+  const { wishlistCount } = useWishlist();
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
 
@@ -80,13 +82,17 @@ export default function Account() {
               <p>Track and review your past orders</p>
             </Link>
 
-            <div className="card account-tile account-tile-disabled">
+            <Link to="/wishlist" className="card account-tile">
               <span className="account-tile-icon" aria-hidden="true">
                 &#10084;
               </span>
               <h3>Wishlist</h3>
-              <p>Coming soon</p>
-            </div>
+              <p>
+                {wishlistCount > 0
+                  ? `${wishlistCount} item${wishlistCount !== 1 ? "s" : ""} saved`
+                  : "Save your favorite plants"}
+              </p>
+            </Link>
 
             <div className="card account-tile account-tile-disabled">
               <span className="account-tile-icon" aria-hidden="true">

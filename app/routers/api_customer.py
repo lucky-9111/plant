@@ -15,6 +15,7 @@ from app.models import (
     OrderItem,
     OrderStatusHistory,
     Plant,
+    WishlistItem,
 )
 from app.notifications import notify_order_status, send_email
 from app.schemas import (
@@ -30,6 +31,9 @@ from app.schemas import (
     OrderOut,
     OrderSummaryOut,
     ResetPasswordIn,
+    WishlistAddIn,
+    WishlistItemOut,
+    WishlistStatusOut,
 )
 
 router = APIRouter(prefix="/api/customer")
@@ -210,6 +214,74 @@ def remove_cart_item(
 @router.delete("/cart", status_code=204)
 def clear_cart(customer_id: int = Depends(get_current_customer), db: Session = Depends(get_db)):
     db.query(CartItem).filter(CartItem.customer_id == customer_id).delete()
+    db.commit()
+
+
+# ---------- Wishlist ----------
+
+
+@router.get("/wishlist", response_model=list[WishlistItemOut])
+def get_wishlist(customer_id: int = Depends(get_current_customer), db: Session = Depends(get_db)):
+    return (
+        db.query(WishlistItem)
+        .options(joinedload(WishlistItem.plant))
+        .filter(WishlistItem.customer_id == customer_id)
+        .order_by(WishlistItem.created_at.desc())
+        .all()
+    )
+
+
+@router.get("/wishlist/status/{plant_id}", response_model=WishlistStatusOut)
+def get_wishlist_status(
+    plant_id: int, customer_id: int = Depends(get_current_customer), db: Session = Depends(get_db)
+):
+    exists = (
+        db.query(WishlistItem)
+        .filter(WishlistItem.customer_id == customer_id, WishlistItem.plant_id == plant_id)
+        .first()
+        is not None
+    )
+    return WishlistStatusOut(in_wishlist=exists)
+
+
+@router.post("/wishlist", response_model=WishlistItemOut, status_code=201)
+def add_to_wishlist(
+    payload: WishlistAddIn,
+    customer_id: int = Depends(get_current_customer),
+    db: Session = Depends(get_db),
+):
+    plant = db.query(Plant).filter(Plant.id == payload.plant_id, Plant.is_active.is_(True)).first()
+    if not plant:
+        raise HTTPException(status_code=404, detail="Plant not found")
+
+    item = (
+        db.query(WishlistItem)
+        .options(joinedload(WishlistItem.plant))
+        .filter(WishlistItem.customer_id == customer_id, WishlistItem.plant_id == payload.plant_id)
+        .first()
+    )
+    if item:
+        return item
+
+    item = WishlistItem(customer_id=customer_id, plant_id=payload.plant_id)
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.delete("/wishlist/{plant_id}", status_code=204)
+def remove_from_wishlist(
+    plant_id: int, customer_id: int = Depends(get_current_customer), db: Session = Depends(get_db)
+):
+    item = (
+        db.query(WishlistItem)
+        .filter(WishlistItem.customer_id == customer_id, WishlistItem.plant_id == plant_id)
+        .first()
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found in wishlist")
+    db.delete(item)
     db.commit()
 
 

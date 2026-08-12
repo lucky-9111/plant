@@ -5,9 +5,11 @@ import About from "./pages/About";
 import Plants from "./pages/Plants";
 import PlantDetail from "./pages/PlantDetail";
 import Cart from "./pages/Cart";
+import Wishlist from "./pages/Wishlist";
 import Checkout from "./pages/Checkout";
 import Account from "./pages/Account";
 import Orders from "./pages/Orders";
+import OrderDetail from "./pages/OrderDetail";
 import Services from "./pages/Services";
 import Pricing from "./pages/Pricing";
 import FAQs from "./pages/FAQs";
@@ -49,9 +51,11 @@ export default function App() {
         <Route path="/plants" element={<Plants />} />
         <Route path="/plants/:slug" element={<PlantDetail />} />
         <Route path="/cart" element={<Cart />} />
+        <Route path="/wishlist" element={<Wishlist />} />
         <Route path="/checkout" element={<Checkout />} />
         <Route path="/account" element={<Account />} />
         <Route path="/orders" element={<Orders />} />
+        <Route path="/orders/:id" element={<OrderDetail />} />
         <Route path="/services" element={<Services />} />
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/faqs" element={<FAQs />} />

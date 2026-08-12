@@ -56,7 +56,7 @@ export default function Orders() {
           ) : (
             <div className="orders-list">
               {orders.map((order) => (
-                <div key={order.id} className="card">
+                <Link key={order.id} to={`/orders/${order.id}`} className="card">
                   <div className="card-body orders-row-body">
                     <div>
                       <div className="orders-row-id">Order #{order.id}</div>
@@ -65,7 +65,7 @@ export default function Orders() {
                     <span className={`badge ${statusBadgeClass(order.status)}`}>{order.status}</span>
                     <div className="orders-row-total">&#8377;{order.total_amount}</div>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}
