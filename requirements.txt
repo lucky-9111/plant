@@ -5,3 +5,4 @@ itsdangerous==2.2.0
 bcrypt==4.2.0
 python-slugify==8.0.4
 python-dotenv==1.0.1
+razorpay==2.0.1
