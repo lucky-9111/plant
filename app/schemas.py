@@ -331,6 +331,33 @@ class WishlistStatusOut(BaseModel):
     in_wishlist: bool
 
 
+class AddressOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    full_name: str
+    mobile: str
+    line1: str
+    line2: str
+    city: str
+    state: str
+    pincode: str
+    address_type: str
+    is_default: bool
+    created_at: datetime
+
+
+class AddressIn(BaseModel):
+    full_name: str
+    mobile: str
+    line1: str
+    line2: str = ""
+    city: str
+    state: str
+    pincode: str
+    address_type: str = "Home"
+    is_default: bool = False
+
+
 class CheckoutIn(BaseModel):
     delivery_name: str
     delivery_mobile: str

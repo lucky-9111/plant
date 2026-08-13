@@ -1983,6 +1983,80 @@ button.wishlist-btn.card-wishlist-btn.active {
   }
 }
 
+/* ---------- Address book ---------- */
+
+.address-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.address-card-header {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.address-card-name {
+  margin: 0 0 6px;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.address-card-line {
+  margin: 0 0 4px;
+  color: var(--color-text-muted);
+  font-size: 0.92rem;
+}
+
+.address-card-mobile {
+  margin-top: 8px;
+}
+
+.address-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.address-card-actions .btn {
+  flex: 1;
+  min-width: 90px;
+}
+
+.checkout-address-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.checkout-address-list .checkout-address-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 400;
+  font-size: 0.92rem;
+  margin-bottom: 0;
+}
+
+.checkout-address-option input {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.checkout-address-option-active {
+  border-color: var(--color-accent);
+  background: rgba(64, 145, 108, 0.06);
+}
+
 /* ---------- Order tracker ---------- */
 
 .order-tracker-wrap {

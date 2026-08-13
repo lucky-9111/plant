@@ -1,3 +1,4 @@
+import re
 import secrets
 from datetime import datetime, timedelta
 
@@ -9,6 +10,7 @@ from app.database import get_db
 from app.deps import get_current_customer
 from app.models import (
     CANCELLABLE_STATUSES,
+    Address,
     CartItem,
     Customer,
     Order,
@@ -19,6 +21,8 @@ from app.models import (
 )
 from app.notifications import notify_order_status, send_email
 from app.schemas import (
+    AddressIn,
+    AddressOut,
     CartAddIn,
     CartItemOut,
     CartUpdateIn,
@@ -37,6 +41,10 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/api/customer")
+
+MOBILE_PATTERN = re.compile(r"^[6-9]\d{9}$")
+PINCODE_PATTERN = re.compile(r"^\d{6}$")
+ADDRESS_TYPES = {"Home", "Other"}
 
 
 def get_or_404_order(db: Session, order_id: int, customer_id: int) -> Order:
@@ -283,6 +291,138 @@ def remove_from_wishlist(
         raise HTTPException(status_code=404, detail="Item not found in wishlist")
     db.delete(item)
     db.commit()
+
+
+# ---------- Addresses ----------
+
+
+def _validate_address_payload(payload: AddressIn) -> None:
+    if not MOBILE_PATTERN.match(payload.mobile.strip()):
+        raise HTTPException(status_code=400, detail="Please enter a valid 10-digit mobile number")
+    if not PINCODE_PATTERN.match(payload.pincode.strip()):
+        raise HTTPException(status_code=400, detail="Please enter a valid 6-digit pincode")
+    if payload.address_type not in ADDRESS_TYPES:
+        raise HTTPException(status_code=400, detail="Address type must be Home or Other")
+    if not payload.full_name.strip() or not payload.line1.strip() or not payload.city.strip() or not payload.state.strip():
+        raise HTTPException(status_code=400, detail="Please fill in all required address fields")
+
+
+def get_or_404_address(db: Session, address_id: int, customer_id: int) -> Address:
+    address = (
+        db.query(Address)
+        .filter(Address.id == address_id, Address.customer_id == customer_id)
+        .first()
+    )
+    if not address:
+        raise HTTPException(status_code=404, detail="Address not found")
+    return address
+
+
+@router.get("/addresses", response_model=list[AddressOut])
+def list_addresses(customer_id: int = Depends(get_current_customer), db: Session = Depends(get_db)):
+    return (
+        db.query(Address)
+        .filter(Address.customer_id == customer_id)
+        .order_by(Address.is_default.desc(), Address.created_at.desc())
+        .all()
+    )
+
+
+@router.post("/addresses", response_model=AddressOut, status_code=201)
+def create_address(
+    payload: AddressIn,
+    customer_id: int = Depends(get_current_customer),
+    db: Session = Depends(get_db),
+):
+    _validate_address_payload(payload)
+
+    has_existing = db.query(Address).filter(Address.customer_id == customer_id).first() is not None
+    make_default = payload.is_default or not has_existing
+
+    if make_default:
+        db.query(Address).filter(Address.customer_id == customer_id).update({"is_default": False})
+
+    address = Address(
+        customer_id=customer_id,
+        full_name=payload.full_name.strip(),
+        mobile=payload.mobile.strip(),
+        line1=payload.line1.strip(),
+        line2=payload.line2.strip(),
+        city=payload.city.strip(),
+        state=payload.state.strip(),
+        pincode=payload.pincode.strip(),
+        address_type=payload.address_type,
+        is_default=make_default,
+    )
+    db.add(address)
+    db.commit()
+    db.refresh(address)
+    return address
+
+
+@router.put("/addresses/{address_id}", response_model=AddressOut)
+def update_address(
+    address_id: int,
+    payload: AddressIn,
+    customer_id: int = Depends(get_current_customer),
+    db: Session = Depends(get_db),
+):
+    _validate_address_payload(payload)
+    address = get_or_404_address(db, address_id, customer_id)
+
+    if payload.is_default and not address.is_default:
+        db.query(Address).filter(Address.customer_id == customer_id).update({"is_default": False})
+
+    address.full_name = payload.full_name.strip()
+    address.mobile = payload.mobile.strip()
+    address.line1 = payload.line1.strip()
+    address.line2 = payload.line2.strip()
+    address.city = payload.city.strip()
+    address.state = payload.state.strip()
+    address.pincode = payload.pincode.strip()
+    address.address_type = payload.address_type
+    if payload.is_default:
+        address.is_default = True
+    db.commit()
+    db.refresh(address)
+    return address
+
+
+@router.put("/addresses/{address_id}/default", response_model=AddressOut)
+def set_default_address(
+    address_id: int,
+    customer_id: int = Depends(get_current_customer),
+    db: Session = Depends(get_db),
+):
+    address = get_or_404_address(db, address_id, customer_id)
+    db.query(Address).filter(Address.customer_id == customer_id).update({"is_default": False})
+    address.is_default = True
+    db.commit()
+    db.refresh(address)
+    return address
+
+
+@router.delete("/addresses/{address_id}", status_code=204)
+def delete_address(
+    address_id: int,
+    customer_id: int = Depends(get_current_customer),
+    db: Session = Depends(get_db),
+):
+    address = get_or_404_address(db, address_id, customer_id)
+    was_default = address.is_default
+    db.delete(address)
+    db.commit()
+
+    if was_default:
+        next_address = (
+            db.query(Address)
+            .filter(Address.customer_id == customer_id)
+            .order_by(Address.created_at.desc())
+            .first()
+        )
+        if next_address:
+            next_address.is_default = True
+            db.commit()
 
 
 # ---------- Checkout & Orders ----------

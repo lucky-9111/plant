@@ -232,6 +232,25 @@ class WishlistItem(Base):
     plant = relationship("Plant")
 
 
+class Address(Base):
+    __tablename__ = "addresses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False, index=True)
+    full_name = Column(String(120), nullable=False)
+    mobile = Column(String(30), nullable=False)
+    line1 = Column(String(200), nullable=False)
+    line2 = Column(String(200), default="")
+    city = Column(String(100), nullable=False)
+    state = Column(String(100), nullable=False)
+    pincode = Column(String(20), nullable=False)
+    address_type = Column(String(20), default="Home")
+    is_default = Column(Boolean, default=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    customer = relationship("Customer")
+
+
 class Order(Base):
     __tablename__ = "orders"
 

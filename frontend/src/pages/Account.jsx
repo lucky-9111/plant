@@ -94,13 +94,13 @@ export default function Account() {
               </p>
             </Link>
 
-            <div className="card account-tile account-tile-disabled">
+            <Link to="/addresses" className="card account-tile">
               <span className="account-tile-icon" aria-hidden="true">
                 &#128205;
               </span>
-              <h3>Address Book</h3>
-              <p>Coming soon</p>
-            </div>
+              <h3>My Addresses</h3>
+              <p>Manage your saved delivery addresses</p>
+            </Link>
 
             <Link to="/forgot-password" className="card account-tile">
               <span className="account-tile-icon" aria-hidden="true">

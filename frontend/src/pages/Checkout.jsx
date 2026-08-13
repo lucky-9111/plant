@@ -80,6 +80,48 @@ export default function Checkout() {
   const [error, setError] = useState("");
   const [placedOrder, setPlacedOrder] = useState(null);
 
+  const [addresses, setAddresses] = useState([]);
+  const [selectedAddressId, setSelectedAddressId] = useState(null);
+
+  useEffect(() => {
+    if (session?.type !== "customer") return;
+    api
+      .get("/customer/addresses")
+      .then((data) => {
+        setAddresses(data);
+        const preferred = data.find((a) => a.is_default) || data[0];
+        if (preferred) applyAddress(preferred);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
+  function applyAddress(address) {
+    setSelectedAddressId(address.id);
+    setForm({
+      delivery_name: address.full_name,
+      delivery_mobile: address.mobile,
+      delivery_line1: address.line1,
+      delivery_line2: address.line2,
+      delivery_city: address.city,
+      delivery_state: address.state,
+      delivery_pincode: address.pincode,
+    });
+  }
+
+  function useNewAddress() {
+    setSelectedAddressId(null);
+    setForm({
+      delivery_name: "",
+      delivery_mobile: "",
+      delivery_line1: "",
+      delivery_line2: "",
+      delivery_city: "",
+      delivery_state: "",
+      delivery_pincode: "",
+    });
+  }
+
   useEffect(() => {
     if (!buyNowRequest?.slug) return;
     setLoadingBuyNowPlant(true);
@@ -110,6 +152,7 @@ export default function Checkout() {
     (buyNowPlant.stock_quantity <= 0 || buyNowPlant.stock_quantity < buyNowRequest.quantity);
 
   function update(field, value) {
+    setSelectedAddressId(null);
     setForm((f) => ({ ...f, [field]: value }));
   }
 
@@ -184,6 +227,40 @@ export default function Checkout() {
           <div className="card">
             <div className="card-body">
               <h3 style={{ marginTop: 0, marginBottom: 16 }}>Delivery Details</h3>
+
+              {addresses.length > 0 && (
+                <div className="form-group">
+                  <label>Choose a Saved Address</label>
+                  <div className="checkout-address-list">
+                    {addresses.map((address) => (
+                      <label
+                        key={address.id}
+                        className={`checkout-address-option ${selectedAddressId === address.id ? "checkout-address-option-active" : ""}`}
+                      >
+                        <input
+                          type="radio"
+                          name="saved_address"
+                          checked={selectedAddressId === address.id}
+                          onChange={() => applyAddress(address)}
+                        />
+                        <span>
+                          <strong>{address.address_type}</strong> &mdash; {address.full_name}, {address.line1}, {address.city}, {address.state} - {address.pincode}
+                        </span>
+                      </label>
+                    ))}
+                    <label className={`checkout-address-option ${selectedAddressId === null ? "checkout-address-option-active" : ""}`}>
+                      <input
+                        type="radio"
+                        name="saved_address"
+                        checked={selectedAddressId === null}
+                        onChange={useNewAddress}
+                      />
+                      <span>Enter a new address</span>
+                    </label>
+                  </div>
+                </div>
+              )}
+
               {error && <div className="alert alert-error">{error}</div>}
 
               {buyNowUnavailable && (
