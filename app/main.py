@@ -43,6 +43,17 @@ with engine.connect() as conn:
         conn.execute(text("ALTER TABLE customers ADD COLUMN reset_token_expires DATETIME"))
         conn.commit()
 
+    order_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(orders)"))}
+    if "razorpay_order_id" not in order_columns:
+        conn.execute(text("ALTER TABLE orders ADD COLUMN razorpay_order_id VARCHAR(100)"))
+        conn.commit()
+    if "razorpay_payment_id" not in order_columns:
+        conn.execute(text("ALTER TABLE orders ADD COLUMN razorpay_payment_id VARCHAR(100)"))
+        conn.commit()
+    if "razorpay_signature" not in order_columns:
+        conn.execute(text("ALTER TABLE orders ADD COLUMN razorpay_signature VARCHAR(255)"))
+        conn.commit()
+
 app = FastAPI(title="Aaiji Nursery")
 
 

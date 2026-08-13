@@ -20,6 +20,7 @@ from app.models import (
     WishlistItem,
 )
 from app.notifications import notify_order_status, send_email
+from app.payments import create_razorpay_order, verify_payment_signature
 from app.schemas import (
     AddressIn,
     AddressOut,
@@ -34,6 +35,8 @@ from app.schemas import (
     OrderCancelIn,
     OrderOut,
     OrderSummaryOut,
+    PaymentFailedIn,
+    RazorpayVerifyIn,
     ResetPasswordIn,
     WishlistAddIn,
     WishlistItemOut,
@@ -45,6 +48,7 @@ router = APIRouter(prefix="/api/customer")
 MOBILE_PATTERN = re.compile(r"^[6-9]\d{9}$")
 PINCODE_PATTERN = re.compile(r"^\d{6}$")
 ADDRESS_TYPES = {"Home", "Other"}
+PAYMENT_METHODS = {"COD", "Razorpay"}
 
 
 def get_or_404_order(db: Session, order_id: int, customer_id: int) -> Order:
@@ -434,6 +438,9 @@ def checkout(
     customer_id: int = Depends(get_current_customer),
     db: Session = Depends(get_db),
 ):
+    if payload.payment_method not in PAYMENT_METHODS:
+        raise HTTPException(status_code=400, detail="Invalid payment method")
+
     buy_now = payload.buy_now_plant_id is not None
     clear_cart = not buy_now
 
@@ -504,6 +511,14 @@ def checkout(
         )
         plant.stock_quantity -= quantity
 
+    if payload.payment_method == "Razorpay":
+        try:
+            razorpay_order = create_razorpay_order(subtotal, receipt=f"order_{order.id}")
+        except HTTPException:
+            db.rollback()
+            raise
+        order.razorpay_order_id = razorpay_order["id"]
+
     db.add(
         OrderStatusHistory(
             order_id=order.id,
@@ -518,7 +533,73 @@ def checkout(
     db.commit()
 
     order = get_or_404_order(db, order.id, customer_id)
-    notify_order_status(order, None, "Pending")
+    if payload.payment_method != "Razorpay":
+        # Razorpay orders are notified once payment is verified, not before.
+        notify_order_status(order, None, "Pending")
+    return order
+
+
+@router.post("/orders/{order_id}/verify-payment", response_model=OrderOut)
+def verify_payment(
+    order_id: int,
+    payload: RazorpayVerifyIn,
+    customer_id: int = Depends(get_current_customer),
+    db: Session = Depends(get_db),
+):
+    order = get_or_404_order(db, order_id, customer_id)
+
+    if order.payment_method != "Razorpay":
+        raise HTTPException(status_code=400, detail="This order does not use online payment")
+
+    if order.payment_status == "Paid":
+        return order  # already verified; idempotent for double-submits
+
+    if not order.razorpay_order_id or order.razorpay_order_id != payload.razorpay_order_id:
+        raise HTTPException(status_code=400, detail="Payment does not match this order")
+
+    verified = verify_payment_signature(
+        payload.razorpay_order_id, payload.razorpay_payment_id, payload.razorpay_signature
+    )
+    if not verified:
+        order.payment_status = "Failed"
+        db.commit()
+        raise HTTPException(status_code=400, detail="Payment verification failed")
+
+    old_status = order.status
+    order.payment_status = "Paid"
+    order.razorpay_payment_id = payload.razorpay_payment_id
+    order.razorpay_signature = payload.razorpay_signature
+    if order.status == "Pending":
+        order.status = "Confirmed"
+    db.add(
+        OrderStatusHistory(
+            order_id=order.id,
+            old_status=old_status,
+            new_status=order.status,
+            updated_by="system",
+            remarks="Payment verified via Razorpay",
+        )
+    )
+    db.commit()
+
+    order = get_or_404_order(db, order_id, customer_id)
+    notify_order_status(order, old_status, order.status)
+    return order
+
+
+@router.post("/orders/{order_id}/payment-failed", response_model=OrderOut)
+def mark_payment_failed(
+    order_id: int,
+    payload: PaymentFailedIn,
+    customer_id: int = Depends(get_current_customer),
+    db: Session = Depends(get_db),
+):
+    order = get_or_404_order(db, order_id, customer_id)
+    if order.payment_method == "Razorpay" and order.payment_status != "Paid":
+        order.payment_status = "Failed"
+        db.commit()
+        order = get_or_404_order(db, order_id, customer_id)
+        print(f"[payment] Order #{order.id} payment not completed: {payload.reason or 'unspecified'}")
     return order
 
 
@@ -526,6 +607,7 @@ def checkout(
 def list_orders(customer_id: int = Depends(get_current_customer), db: Session = Depends(get_db)):
     return (
         db.query(Order)
+        .options(joinedload(Order.items))
         .filter(Order.customer_id == customer_id)
         .order_by(Order.created_at.desc())
         .all()

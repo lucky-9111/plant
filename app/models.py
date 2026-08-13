@@ -264,6 +264,10 @@ class Order(Base):
     shipping_fee = Column(Float, default=0)
     total_amount = Column(Float, default=0)
 
+    razorpay_order_id = Column(String(100), nullable=True, index=True)
+    razorpay_payment_id = Column(String(100), nullable=True)
+    razorpay_signature = Column(String(255), nullable=True)
+
     delivery_name = Column(String(120), default="")
     delivery_mobile = Column(String(30), default="")
     delivery_line1 = Column(String(200), default="")

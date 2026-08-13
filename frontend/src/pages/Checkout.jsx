@@ -7,8 +7,28 @@ import { Loading, Empty } from "../components/Loading";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 const MOBILE_PATTERN = /^[6-9]\d{9}$/;
+const RAZORPAY_SCRIPT_SRC = "https://checkout.razorpay.com/v1/checkout.js";
+
+let razorpayScriptPromise = null;
+function loadRazorpayScript() {
+  if (window.Razorpay) return Promise.resolve();
+  if (!razorpayScriptPromise) {
+    razorpayScriptPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = RAZORPAY_SCRIPT_SRC;
+      script.onload = () => resolve();
+      script.onerror = () => {
+        razorpayScriptPromise = null;
+        reject(new Error("Could not load the payment gateway. Please check your connection and try again."));
+      };
+      document.body.appendChild(script);
+    });
+  }
+  return razorpayScriptPromise;
+}
 
 function OrderConfirmation({ order }) {
+  const paidOnline = order.payment_method === "Razorpay";
   return (
     <section className="section">
       <div className="container" style={{ maxWidth: 640 }}>
@@ -22,8 +42,20 @@ function OrderConfirmation({ order }) {
             </div>
             <h2 style={{ marginBottom: 8 }}>Thank you, {order.delivery_name}!</h2>
             <p style={{ color: "var(--color-text-muted)" }}>
-              Your order #{order.id} has been placed successfully and will be paid for via{" "}
-              <strong>Cash on Delivery</strong>. Current status: <strong>{order.status}</strong>.
+              Your order #{order.id} has been placed successfully
+              {paidOnline ? (
+                <>
+                  {" "}
+                  and payment of &#8377;{order.total_amount} was received via{" "}
+                  <strong>Razorpay</strong>.
+                </>
+              ) : (
+                <>
+                  {" "}
+                  and will be paid for via <strong>Cash on Delivery</strong>.
+                </>
+              )}{" "}
+              Current status: <strong>{order.status}</strong>.
             </p>
 
             <div style={{ textAlign: "left", marginTop: 24 }}>
@@ -79,6 +111,11 @@ export default function Checkout() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [placedOrder, setPlacedOrder] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState("COD");
+  const [pendingOrder, setPendingOrder] = useState(null);
+  const [paymentError, setPaymentError] = useState("");
+  const [payingNow, setPayingNow] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   const [addresses, setAddresses] = useState([]);
   const [selectedAddressId, setSelectedAddressId] = useState(null);
@@ -156,6 +193,77 @@ export default function Checkout() {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
+  async function openRazorpayCheckout(order) {
+    setPaymentError("");
+    setPayingNow(true);
+    try {
+      await loadRazorpayScript();
+    } catch (err) {
+      setPaymentError(err.message);
+      setPayingNow(false);
+      return;
+    }
+
+    const rzp = new window.Razorpay({
+      key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+      amount: Math.round(order.total_amount * 100),
+      currency: "INR",
+      name: "Aaiji Nursery",
+      description: `Order #${order.id}`,
+      order_id: order.razorpay_order_id,
+      prefill: {
+        name: order.delivery_name,
+        contact: order.delivery_mobile,
+        email: session?.email || "",
+      },
+      theme: { color: "#40916c" },
+      handler: async function (response) {
+        try {
+          const verifiedOrder = await api.post(`/customer/orders/${order.id}/verify-payment`, {
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature,
+          });
+          setPendingOrder(null);
+          setPlacedOrder(verifiedOrder);
+          if (!isBuyNow) refreshCart();
+        } catch (err) {
+          setPaymentError(
+            err.message ||
+              "We couldn't verify your payment. If money was deducted, please contact support with your order ID."
+          );
+        } finally {
+          setPayingNow(false);
+        }
+      },
+      modal: {
+        ondismiss: async function () {
+          setPayingNow(false);
+          setPaymentError("Payment was cancelled. You can retry payment or cancel this order below.");
+          try {
+            await api.post(`/customer/orders/${order.id}/payment-failed`, { reason: "cancelled_by_user" });
+          } catch {
+            // best-effort status sync
+          }
+        },
+      },
+    });
+
+    rzp.on("payment.failed", async function (response) {
+      setPayingNow(false);
+      setPaymentError(response.error?.description || "Payment failed. Please try again.");
+      try {
+        await api.post(`/customer/orders/${order.id}/payment-failed`, {
+          reason: response.error?.description || "payment_failed",
+        });
+      } catch {
+        // best-effort status sync
+      }
+    });
+
+    rzp.open();
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     const mobile = form.delivery_mobile.trim();
@@ -165,15 +273,21 @@ export default function Checkout() {
     }
     setSubmitting(true);
     setError("");
+    setPaymentError("");
     try {
-      const payload = { ...form, delivery_mobile: mobile, payment_method: "COD" };
+      const payload = { ...form, delivery_mobile: mobile, payment_method: paymentMethod };
       if (isBuyNow) {
         payload.buy_now_plant_id = buyNowRequest.plantId;
         payload.buy_now_quantity = buyNowRequest.quantity;
       }
       const order = await api.post("/customer/checkout", payload);
-      setPlacedOrder(order);
-      if (!isBuyNow) refreshCart();
+      if (paymentMethod === "Razorpay") {
+        setPendingOrder(order);
+        openRazorpayCheckout(order);
+      } else {
+        setPlacedOrder(order);
+        if (!isBuyNow) refreshCart();
+      }
     } catch (err) {
       setError(err.message || "Could not place your order. Please try again.");
     } finally {
@@ -181,7 +295,71 @@ export default function Checkout() {
     }
   }
 
+  async function handleCancelPendingOrder() {
+    if (!pendingOrder) return;
+    if (!confirm("Cancel this order?")) return;
+    setCancelling(true);
+    try {
+      await api.post(`/customer/orders/${pendingOrder.id}/cancel`, { remarks: "Cancelled before payment" });
+      setPendingOrder(null);
+      setPaymentError("");
+      if (!isBuyNow) refreshCart();
+    } catch (err) {
+      setPaymentError(err.message || "Could not cancel this order.");
+    } finally {
+      setCancelling(false);
+    }
+  }
+
   if (placedOrder) return <OrderConfirmation order={placedOrder} />;
+
+  if (pendingOrder) {
+    return (
+      <section className="section">
+        <div className="container" style={{ maxWidth: 640 }}>
+          <div className="card">
+            <div className="card-body" style={{ textAlign: "center" }}>
+              <div
+                className="badge badge-gold"
+                style={{ fontSize: "0.9rem", padding: "8px 18px", marginBottom: 18 }}
+              >
+                Payment Pending
+              </div>
+              <h2 style={{ marginBottom: 8 }}>Order #{pendingOrder.id} created</h2>
+              <p style={{ color: "var(--color-text-muted)" }}>
+                Complete payment of &#8377;{pendingOrder.total_amount} via Razorpay to confirm your order.
+              </p>
+
+              {paymentError && (
+                <div className="alert alert-error" style={{ textAlign: "left", marginTop: 12 }}>
+                  {paymentError}
+                </div>
+              )}
+
+              <div style={{ marginTop: 24, display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={payingNow}
+                  onClick={() => openRazorpayCheckout(pendingOrder)}
+                >
+                  {payingNow ? "Opening Payment..." : "Retry Payment"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  disabled={cancelling || payingNow}
+                  onClick={handleCancelPendingOrder}
+                >
+                  {cancelling ? "Cancelling..." : "Cancel Order"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   if (isBuyNow && loadingBuyNowPlant) return <Loading />;
 
@@ -357,15 +535,27 @@ export default function Checkout() {
                 <div className="form-group">
                   <label>Payment Method</label>
                   <div className="checkbox-row">
-                    <input type="radio" id="pm_cod" checked readOnly />
+                    <input
+                      type="radio"
+                      id="pm_cod"
+                      name="payment_method"
+                      checked={paymentMethod === "COD"}
+                      onChange={() => setPaymentMethod("COD")}
+                    />
                     <label htmlFor="pm_cod" style={{ margin: 0, fontWeight: 600 }}>
                       Cash on Delivery
                     </label>
                   </div>
-                  <div className="checkbox-row" style={{ opacity: 0.5, marginTop: 8 }}>
-                    <input type="radio" id="pm_online" disabled />
-                    <label htmlFor="pm_online" style={{ margin: 0 }}>
-                      Online Payment (Razorpay) &mdash; Coming Soon
+                  <div className="checkbox-row" style={{ marginTop: 8 }}>
+                    <input
+                      type="radio"
+                      id="pm_online"
+                      name="payment_method"
+                      checked={paymentMethod === "Razorpay"}
+                      onChange={() => setPaymentMethod("Razorpay")}
+                    />
+                    <label htmlFor="pm_online" style={{ margin: 0, fontWeight: 600 }}>
+                      Online Payment (Razorpay) &mdash; Cards, UPI, Netbanking, Wallets
                     </label>
                   </div>
                 </div>
@@ -374,7 +564,13 @@ export default function Checkout() {
                   className="btn btn-primary btn-block"
                   disabled={submitting || buyNowUnavailable || lines.length === 0}
                 >
-                  {submitting ? "Placing Order..." : "Place Order"}
+                  {submitting
+                    ? paymentMethod === "Razorpay"
+                      ? "Creating Order..."
+                      : "Placing Order..."
+                    : paymentMethod === "Razorpay"
+                      ? "Proceed to Payment"
+                      : "Place Order"}
                 </button>
               </form>
             </div>

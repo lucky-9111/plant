@@ -401,6 +401,7 @@ class OrderSummaryOut(BaseModel):
     total_amount: float
     created_at: datetime
     customer: Optional[CustomerOut] = None
+    items: List[OrderItemOut] = []
 
 
 class OrderOut(BaseModel):
@@ -409,6 +410,7 @@ class OrderOut(BaseModel):
     status: str
     payment_status: str
     payment_method: str
+    razorpay_order_id: Optional[str] = None
     subtotal: float
     shipping_fee: float
     total_amount: float
@@ -433,6 +435,16 @@ class OrderOut(BaseModel):
 
 class OrderCancelIn(BaseModel):
     remarks: str = ""
+
+
+class RazorpayVerifyIn(BaseModel):
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
+
+
+class PaymentFailedIn(BaseModel):
+    reason: str = ""
 
 
 class CustomerAdminOut(BaseModel):

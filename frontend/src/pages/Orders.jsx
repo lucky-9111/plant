@@ -55,18 +55,45 @@ export default function Orders() {
             </Empty>
           ) : (
             <div className="orders-list">
-              {orders.map((order) => (
-                <Link key={order.id} to={`/orders/${order.id}`} className="card">
-                  <div className="card-body orders-row-body">
-                    <div>
-                      <div className="orders-row-id">Order #{order.id}</div>
-                      <div className="orders-row-date">{new Date(order.created_at).toLocaleDateString()}</div>
+              {orders.map((order) => {
+                const items = order.items || [];
+                const visibleItems = items.slice(0, 3);
+                const extraCount = items.length - visibleItems.length;
+                return (
+                  <Link key={order.id} to={`/orders/${order.id}`} className="card">
+                    <div className="card-body orders-row-body">
+                      <div className="orders-row-main">
+                        {items.length > 0 && (
+                          <div className="orders-row-thumbs">
+                            {visibleItems.map((item) => (
+                              <img
+                                key={item.id}
+                                src={item.plant_image_url}
+                                alt={item.plant_name}
+                                className="orders-row-thumb"
+                              />
+                            ))}
+                            {extraCount > 0 && (
+                              <span className="orders-row-thumb-more">+{extraCount}</span>
+                            )}
+                          </div>
+                        )}
+                        <div>
+                          <div className="orders-row-id">Order #{order.id}</div>
+                          {items.length > 0 && (
+                            <div className="orders-row-product-names">
+                              {items.map((item) => item.plant_name).join(", ")}
+                            </div>
+                          )}
+                          <div className="orders-row-date">{new Date(order.created_at).toLocaleDateString()}</div>
+                        </div>
+                      </div>
+                      <span className={`badge ${statusBadgeClass(order.status)}`}>{order.status}</span>
+                      <div className="orders-row-total">&#8377;{order.total_amount}</div>
                     </div>
-                    <span className={`badge ${statusBadgeClass(order.status)}`}>{order.status}</span>
-                    <div className="orders-row-total">&#8377;{order.total_amount}</div>
-                  </div>
-                </Link>
-              ))}
+                  </Link>
+                );
+              })}
             </div>
           )}
         </div>
