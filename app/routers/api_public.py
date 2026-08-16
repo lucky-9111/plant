@@ -223,10 +223,15 @@ def unified_login(payload: UnifiedLoginIn, request: Request, db: Session = Depen
         log_activity(db, admin.username, "login")
         return {"type": admin.role, "username": admin.username}
 
-    customer = db.query(Customer).filter(Customer.email == identifier.lower()).first()
+    customer_candidates = (
+        db.query(Customer)
+        .filter(or_(Customer.email == identifier.lower(), Customer.name == identifier))
+        .all()
+    )
+    customer = next(
+        (c for c in customer_candidates if verify_password(payload.password, c.hashed_password)), None
+    )
     if customer:
-        if not verify_password(payload.password, customer.hashed_password):
-            raise HTTPException(status_code=401, detail="Invalid email or password")
         request.session["customer_id"] = customer.id
         request.session.pop("admin_username", None)
         db.add(CustomerActivityLog(customer_id=customer.id, action="login"))
