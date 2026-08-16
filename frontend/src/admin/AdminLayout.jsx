@@ -15,6 +15,7 @@ const NAV = [
   { to: "/admin/blog", label: "Blog" },
   { to: "/admin/inquiries", label: "Inquiries" },
   { to: "/admin/customers", label: "Customers" },
+  { to: "/admin/customer-logs", label: "Customer Logs" },
   { to: "/admin/settings", label: "Site Settings" },
   { to: "/admin/admins", label: "Admins" },
 ];

@@ -17,6 +17,7 @@ from app.models import (
     BlogPost,
     Category,
     Customer,
+    CustomerActivityLog,
     GalleryImage,
     Inquiry,
     Order,
@@ -235,6 +236,7 @@ def dashboard(admin: str = Depends(get_current_admin), db: Session = Depends(get
         "inquiries": db.query(Inquiry).count(),
         "testimonials": db.query(Testimonial).count(),
         "blog_posts": db.query(BlogPost).count(),
+        "customer_logins": db.query(CustomerActivityLog).filter(CustomerActivityLog.action == "login").count(),
     }
     recent_inquiries = (
         db.query(Inquiry)
@@ -247,6 +249,30 @@ def dashboard(admin: str = Depends(get_current_admin), db: Session = Depends(get
         "counts": counts,
         "recent_inquiries": [InquiryOut.model_validate(i) for i in recent_inquiries],
     }
+
+
+@router.get("/customer-logs")
+def list_customer_logs(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
+    purchased_ids = {row[0] for row in db.query(Order.customer_id).distinct().all()}
+    logs = (
+        db.query(CustomerActivityLog, Customer)
+        .join(Customer, Customer.id == CustomerActivityLog.customer_id)
+        .filter(CustomerActivityLog.customer_id.notin_(purchased_ids) if purchased_ids else True)
+        .order_by(CustomerActivityLog.created_at.desc())
+        .limit(200)
+        .all()
+    )
+    return [
+        {
+            "id": log.id,
+            "customer_id": customer.id,
+            "customer_name": customer.name,
+            "customer_email": customer.email,
+            "action": log.action,
+            "created_at": log.created_at,
+        }
+        for log, customer in logs
+    ]
 
 
 # ---------- Categories ----------
@@ -722,9 +748,16 @@ def delete_inquiry(
 
 @router.get("/customers", response_model=list[CustomerAdminOut])
 def list_customers(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
-    customers = db.query(Customer).order_by(Customer.created_at.desc()).all()
     order_counts = dict(
         db.query(Order.customer_id, func.count(Order.id)).group_by(Order.customer_id).all()
+    )
+    customers = (
+        db.query(Customer)
+        .filter(Customer.id.in_(order_counts.keys()))
+        .order_by(Customer.created_at.desc())
+        .all()
+        if order_counts
+        else []
     )
     return [
         CustomerAdminOut(

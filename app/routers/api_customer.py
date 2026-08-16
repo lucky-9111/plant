@@ -13,6 +13,7 @@ from app.models import (
     Address,
     CartItem,
     Customer,
+    CustomerActivityLog,
     Order,
     OrderItem,
     OrderStatusHistory,
@@ -83,6 +84,8 @@ def register(payload: CustomerRegisterIn, request: Request, db: Session = Depend
     db.refresh(customer)
     request.session.pop("admin_username", None)
     request.session["customer_id"] = customer.id
+    db.add(CustomerActivityLog(customer_id=customer.id, action="register"))
+    db.commit()
     return customer
 
 

@@ -12,6 +12,7 @@ from app.models import (
     BlogPost,
     Category,
     Customer,
+    CustomerActivityLog,
     GalleryImage,
     Inquiry,
     Plant,
@@ -228,6 +229,8 @@ def unified_login(payload: UnifiedLoginIn, request: Request, db: Session = Depen
             raise HTTPException(status_code=401, detail="Invalid email or password")
         request.session["customer_id"] = customer.id
         request.session.pop("admin_username", None)
+        db.add(CustomerActivityLog(customer_id=customer.id, action="login"))
+        db.commit()
         return {"type": "customer", "id": customer.id, "name": customer.name, "email": customer.email}
 
     raise HTTPException(status_code=401, detail="Invalid credentials")

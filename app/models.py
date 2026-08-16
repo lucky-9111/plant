@@ -194,6 +194,15 @@ class AdminActivityLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class CustomerActivityLog(Base):
+    __tablename__ = "customer_activity_log"
+
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False, index=True)
+    action = Column(String(50), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Customer(Base):
     __tablename__ = "customers"
 

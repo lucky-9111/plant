@@ -63,10 +63,11 @@ export default function Login() {
         {error && <div className="alert alert-error">{error}</div>}
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="identifier">Email or Username</label>
+            <label htmlFor="identifier">Username</label>
             <input
               id="identifier"
               className="form-control"
+              placeholder="Username"
               required
               autoFocus
               value={form.identifier}

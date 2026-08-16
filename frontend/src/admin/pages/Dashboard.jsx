@@ -19,6 +19,7 @@ export default function Dashboard() {
     { label: "Testimonials", num: data.counts.testimonials, to: "/admin/testimonials" },
     { label: "Blog Posts", num: data.counts.blog_posts, to: "/admin/blog" },
     { label: "Inquiries", num: data.counts.inquiries, to: "/admin/inquiries" },
+    { label: "Customer Logins", num: data.counts.customer_logins, to: "/admin/customer-logs" },
   ];
 
   return (

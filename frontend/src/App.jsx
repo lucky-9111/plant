@@ -38,6 +38,7 @@ import AdminBlog from "./admin/pages/Blog";
 import AdminInquiries from "./admin/pages/Inquiries";
 import AdminCustomers from "./admin/pages/Customers";
 import AdminCustomerDetail from "./admin/pages/CustomerDetail";
+import AdminCustomerLogs from "./admin/pages/CustomerLogs";
 import AdminSettings from "./admin/pages/Settings";
 import AdminAdmins from "./admin/pages/Admins";
 import AdminActivityLog from "./admin/pages/ActivityLog";
@@ -86,6 +87,7 @@ export default function App() {
         <Route path="inquiries" element={<AdminInquiries />} />
         <Route path="customers" element={<AdminCustomers />} />
         <Route path="customers/:id" element={<AdminCustomerDetail />} />
+        <Route path="customer-logs" element={<AdminCustomerLogs />} />
         <Route path="settings" element={<AdminSettings />} />
         <Route path="admins" element={<AdminAdmins />} />
         <Route path="developer/activity-log" element={<AdminActivityLog />} />

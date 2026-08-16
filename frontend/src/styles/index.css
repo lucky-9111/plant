@@ -512,7 +512,92 @@ select:focus-visible {
   transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
-@media (max-width: 1400px) {
+/* Smaller laptop / tablet landscape: keep the full navbar on one line, just tighten spacing. */
+@media (max-width: 1300px) {
+  .navbar .container {
+    height: 84px;
+    gap: 12px;
+  }
+  .brand-logo {
+    height: 68px;
+  }
+  .nav-links {
+    gap: 10px;
+  }
+  .nav-links a:not(.btn) {
+    font-size: 0.85rem;
+  }
+  .nav-links .btn {
+    padding: 9px 16px;
+    font-size: 0.85rem;
+  }
+  .nav-actions {
+    gap: 10px;
+  }
+  .nav-right {
+    gap: 8px;
+  }
+  .nav-search-bar {
+    width: 110px;
+  }
+  .nav-cart-link {
+    width: 32px;
+    height: 32px;
+    font-size: 1rem;
+  }
+  .nav-account {
+    gap: 6px;
+  }
+  .nav-account-avatar {
+    width: 26px;
+    height: 26px;
+    font-size: 0.8rem;
+  }
+  .nav-account-name {
+    max-width: 70px;
+  }
+  .nav-account-logout {
+    font-size: 0.78rem;
+  }
+}
+
+/* iPad landscape / narrow smaller-laptop windows: squeeze a bit further to keep the full row. */
+@media (max-width: 1024px) {
+  .navbar .container {
+    gap: 8px;
+  }
+  .brand-logo {
+    height: 56px;
+  }
+  .nav-links {
+    gap: 8px;
+  }
+  .nav-actions {
+    gap: 8px;
+  }
+  .nav-right {
+    gap: 6px;
+  }
+  .nav-search-bar {
+    width: 70px;
+  }
+  .nav-cart-link {
+    width: 28px;
+    height: 28px;
+    font-size: 0.95rem;
+  }
+  .nav-account-avatar {
+    width: 22px;
+    height: 22px;
+    font-size: 0.75rem;
+  }
+  .nav-account-name {
+    max-width: 44px;
+  }
+}
+
+/* Tablet portrait and phones: not enough room for the full link row, collapse to the hamburger menu. */
+@media (max-width: 1023px) {
   .navbar .container {
     height: 72px;
     gap: 10px;
@@ -532,6 +617,13 @@ select:focus-visible {
     transition: transform 0.25s ease;
     overflow-y: auto;
   }
+  .nav-links a:not(.btn) {
+    font-size: 0.95rem;
+  }
+  .nav-links .btn {
+    padding: 12px 24px;
+    font-size: 0.95rem;
+  }
   .nav-links.open {
     transform: translateX(0);
   }
@@ -543,6 +635,9 @@ select:focus-visible {
   }
   .nav-actions {
     gap: 12px;
+  }
+  .nav-search-bar {
+    width: 230px;
   }
 }
 
