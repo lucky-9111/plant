@@ -308,9 +308,10 @@ select:focus-visible {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: clamp(12px, 1.5vw, 24px);
   height: 112px;
   max-width: 1400px;
+  padding-inline: clamp(12px, 2vw, 28px);
 }
 
 .brand {
@@ -345,14 +346,22 @@ select:focus-visible {
 .nav-links {
   display: flex;
   align-items: center;
-  gap: 28px;
+  justify-content: center;
+  gap: clamp(0.45rem, 0.85vw, 1.5rem);
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .nav-links a:not(.btn) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-weight: 600;
   color: var(--color-text);
-  font-size: 0.95rem;
-  padding: 6px 0;
+  font-size: clamp(0.76rem, 0.72rem + 0.12vw, 0.95rem);
+  padding: 0.55rem 0.7rem;
+  line-height: 1.2;
+  white-space: nowrap;
   border-bottom: 2px solid transparent;
 }
 
@@ -512,7 +521,7 @@ select:focus-visible {
   transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
-/* Smaller laptop / tablet landscape: keep the full navbar on one line, just tighten spacing. */
+/* Smaller laptop / tablet landscape: keep the full navbar on one line, just tighten spacing without squashing the links. */
 @media (max-width: 1300px) {
   .navbar .container {
     height: 84px;
@@ -522,10 +531,11 @@ select:focus-visible {
     height: 68px;
   }
   .nav-links {
-    gap: 10px;
+    gap: clamp(0.2rem, 0.7vw, 1rem);
   }
   .nav-links a:not(.btn) {
-    font-size: 0.85rem;
+    padding: 0.5rem 0.55rem;
+    font-size: 0.82rem;
   }
   .nav-links .btn {
     padding: 9px 16px;
@@ -538,7 +548,7 @@ select:focus-visible {
     gap: 8px;
   }
   .nav-search-bar {
-    width: 110px;
+    width: 150px;
   }
   .nav-cart-link {
     width: 32px;
@@ -561,7 +571,7 @@ select:focus-visible {
   }
 }
 
-/* iPad landscape / narrow smaller-laptop windows: squeeze a bit further to keep the full row. */
+/* iPad landscape / narrow smaller-laptop windows: preserve the same spacing rhythm and let the row flex instead of collapsing. */
 @media (max-width: 1024px) {
   .navbar .container {
     gap: 8px;
@@ -570,7 +580,10 @@ select:focus-visible {
     height: 56px;
   }
   .nav-links {
-    gap: 8px;
+    gap: clamp(0.15rem, 0.55vw, 0.8rem);
+  }
+  .nav-links a:not(.btn) {
+    padding: 0.45rem 0.5rem;
   }
   .nav-actions {
     gap: 8px;
@@ -579,7 +592,7 @@ select:focus-visible {
     gap: 6px;
   }
   .nav-search-bar {
-    width: 70px;
+    width: 120px;
   }
   .nav-cart-link {
     width: 28px;
