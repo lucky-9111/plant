@@ -272,7 +272,7 @@ export default function PlantExplorer() {
                 <p className="explorer-result-count">
                   {result.total} plant{result.total !== 1 ? "s" : ""} found
                 </p>
-                <div className="grid grid-4">
+                <div className="grid grid-3">
                   {result.items.map((plant) => (
                     <PlantCard key={plant.id} plant={plant} />
                   ))}
