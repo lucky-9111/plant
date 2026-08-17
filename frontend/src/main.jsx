@@ -24,3 +24,15 @@ createRoot(document.getElementById("root")).render(
     </BrowserRouter>
   </StrictMode>
 );
+
+// Register service worker (optional) -------------------------------
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      // registration failed
+      // eslint-disable-next-line no-console
+      console.warn('ServiceWorker registration failed:', err);
+    });
+  });
+}
+
