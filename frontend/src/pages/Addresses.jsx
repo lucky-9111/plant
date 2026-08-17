@@ -271,7 +271,14 @@ export default function Addresses() {
   }, [session]);
 
   if (session === undefined) return <Loading />;
-  if (session === null) return <Navigate to="/login" state={{ from: "/addresses" }} replace />;
+  if (session === null)
+    return (
+      <Navigate
+        to="/login"
+        state={{ from: "/addresses", backgroundLocation: { pathname: "/" } }}
+        replace
+      />
+    );
   if (session.type !== "customer") return <Navigate to="/" replace />;
 
   function openAdd() {

@@ -75,7 +75,14 @@ export default function OrderDetail() {
   }, [session, id]);
 
   if (session === undefined) return <Loading />;
-  if (session === null) return <Navigate to="/login" state={{ from: `/orders/${id}` }} replace />;
+  if (session === null)
+    return (
+      <Navigate
+        to="/login"
+        state={{ from: `/orders/${id}`, backgroundLocation: { pathname: "/" } }}
+        replace
+      />
+    );
   if (session.type !== "customer") return <Navigate to="/" replace />;
 
   async function handleCancel() {

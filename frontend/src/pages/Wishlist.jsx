@@ -71,7 +71,14 @@ export default function Wishlist() {
   const { items, loading, removeFromWishlist } = useWishlist();
 
   if (session === undefined) return <Loading />;
-  if (session === null) return <Navigate to="/login" state={{ from: "/wishlist" }} replace />;
+  if (session === null)
+    return (
+      <Navigate
+        to="/login"
+        state={{ from: "/wishlist", backgroundLocation: { pathname: "/" } }}
+        replace
+      />
+    );
   if (session.type !== "customer") return <Navigate to="/" replace />;
 
   return (

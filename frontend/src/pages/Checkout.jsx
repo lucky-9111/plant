@@ -170,7 +170,14 @@ export default function Checkout() {
   }, [buyNowRequest?.slug]);
 
   if (session === undefined) return <Loading />;
-  if (session === null) return <Navigate to="/login" state={{ from: "/checkout" }} replace />;
+  if (session === null)
+    return (
+      <Navigate
+        to="/login"
+        state={{ from: "/checkout", backgroundLocation: { pathname: "/" } }}
+        replace
+      />
+    );
   if (session.type !== "customer") return <Navigate to="/" replace />;
 
   const isBuyNow = Boolean(buyNowRequest);

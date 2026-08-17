@@ -47,7 +47,9 @@ export function WishlistProvider({ children }) {
 
       if (session === null) {
         sessionStorage.setItem(PENDING_KEY, JSON.stringify({ plantId: plant.id }));
-        navigate("/login", { state: { from: location.pathname + location.search } });
+        navigate("/login", {
+          state: { from: location.pathname + location.search, backgroundLocation: location },
+        });
         return;
       }
 

@@ -96,7 +96,14 @@ export default function Cart() {
   const { items, loading, updateQuantity, removeItem } = useCart();
 
   if (session === undefined) return <Loading />;
-  if (session === null) return <Navigate to="/login" state={{ from: "/cart" }} replace />;
+  if (session === null)
+    return (
+      <Navigate
+        to="/login"
+        state={{ from: "/cart", backgroundLocation: { pathname: "/" } }}
+        replace
+      />
+    );
   if (session.type !== "customer") return <Navigate to="/" replace />;
 
   const itemCount = items.reduce((sum, it) => sum + it.quantity, 0);

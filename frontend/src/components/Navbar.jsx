@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import { useSettings } from "../context/SettingsContext";
@@ -24,6 +24,7 @@ export default function Navbar() {
   const { session, logout } = useAuth();
   const { cartCount } = useCart();
   const navigate = useNavigate();
+  const location = useLocation();
 
   async function handleLogout() {
     await logout();
@@ -65,7 +66,12 @@ export default function Navbar() {
           )}
 
           {session === undefined ? null : session === null ? (
-            <NavLink to="/login" className="nav-login-btn" onClick={() => setOpen(false)}>
+            <NavLink
+              to="/login"
+              state={{ backgroundLocation: location }}
+              className="nav-login-btn"
+              onClick={() => setOpen(false)}
+            >
               <span className="nav-login-icon" aria-hidden="true">
                 &#128100;
               </span>

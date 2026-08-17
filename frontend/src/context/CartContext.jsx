@@ -50,7 +50,9 @@ export function CartProvider({ children }) {
           PENDING_KEY,
           JSON.stringify({ type: "add", plantId: plant.id, quantity })
         );
-        navigate("/login", { state: { from: location.pathname + location.search } });
+        navigate("/login", {
+          state: { from: location.pathname + location.search, backgroundLocation: location },
+        });
         return;
       }
 
@@ -79,7 +81,9 @@ export function CartProvider({ children }) {
           PENDING_KEY,
           JSON.stringify({ type: "buyNow", plantId: plant.id, quantity, slug: plant.slug })
         );
-        navigate("/login", { state: { from: location.pathname + location.search } });
+        navigate("/login", {
+          state: { from: location.pathname + location.search, backgroundLocation: location },
+        });
         return;
       }
 

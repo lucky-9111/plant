@@ -2297,3 +2297,175 @@ button.wishlist-btn.card-wishlist-btn.active {
   color: var(--color-text);
   font-weight: 600;
 }
+
+/* ---------- Auth modal ---------- */
+
+@keyframes authOverlayFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes authOverlayFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes authCardIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes authCardOut {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(8px) scale(0.97); }
+}
+
+.auth-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 24px 16px;
+  background: rgba(16, 40, 31, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: authOverlayFadeIn 0.22s ease forwards;
+}
+
+.auth-modal-overlay.closing {
+  animation: authOverlayFadeOut 0.18s ease forwards;
+}
+
+.auth-modal-card {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  margin: auto;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 40px 36px 32px;
+  animation: authCardIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.auth-modal-card.closing {
+  animation: authCardOut 0.18s ease forwards;
+}
+
+.auth-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.auth-modal-close:hover {
+  background: var(--color-border);
+  color: var(--color-text);
+}
+
+.auth-modal-logo-link {
+  display: block;
+  margin-bottom: 18px;
+}
+
+.auth-modal-logo {
+  height: 56px;
+  width: auto;
+}
+
+.auth-modal-title {
+  font-size: 1.5rem;
+  margin-bottom: 4px;
+}
+
+.auth-modal-subtitle {
+  color: var(--color-text-muted);
+  font-size: 0.92rem;
+  margin-bottom: 24px;
+}
+
+.auth-modal-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: -6px 0 20px;
+  font-size: 0.85rem;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.auth-modal-row .checkbox-row {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.auth-modal-link {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.auth-modal-link:hover {
+  text-decoration: underline;
+}
+
+.auth-modal-footer-text {
+  margin-top: 14px;
+  font-size: 0.9rem;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.auth-modal-footer-text a {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.auth-modal-footer-text a:hover {
+  text-decoration: underline;
+}
+
+.auth-page-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary-dark);
+  padding: 24px 16px;
+}
+
+.auth-page-card {
+  animation: none;
+}
+
+@media (max-width: 620px) {
+  .auth-modal-overlay {
+    padding: 16px 12px;
+    align-items: flex-end;
+  }
+
+  .auth-modal-card {
+    max-width: 100%;
+    padding: 32px 22px 26px;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+
+  .auth-page-card {
+    padding: 32px 22px 26px;
+  }
+}
