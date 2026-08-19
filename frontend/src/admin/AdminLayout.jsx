@@ -5,6 +5,7 @@ import logoImg from "../assets/logo.png";
 
 const NAV = [
   { to: "/admin", label: "Dashboard", end: true },
+  { to: "/admin/orders", label: "Orders" },
   { to: "/admin/categories", label: "Categories" },
   { to: "/admin/plants", label: "Plants" },
   { to: "/admin/services", label: "Services" },

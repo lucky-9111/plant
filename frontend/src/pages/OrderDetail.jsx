@@ -3,52 +3,10 @@ import { Link, Navigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { Loading, Empty } from "../components/Loading";
+import OrderTracker from "../components/OrderTracker";
+import CancelOrderModal from "../components/CancelOrderModal";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
-
-const TRACKER_STEPS = ["Pending", "Confirmed", "Processing", "Packed", "Shipped", "Out For Delivery", "Delivered"];
-const STEP_LABELS = { Pending: "Order Placed" };
-const TERMINAL_STATUSES = ["Cancelled", "Refund Initiated", "Refund Completed", "Returned"];
-const CANCELLABLE_STATUSES = ["Pending", "Confirmed"];
-
-function statusLabel(status) {
-  return STEP_LABELS[status] || status;
-}
-
-function paymentBadgeClass(status) {
-  if (status === "Paid") return "badge-accent";
-  if (status === "Failed") return "badge-gold";
-  return "badge-muted";
-}
-
-function OrderTracker({ status }) {
-  if (TERMINAL_STATUSES.includes(status)) {
-    return (
-      <div className="alert alert-error" style={{ marginTop: 20 }}>
-        This order was <strong>{status}</strong>.
-      </div>
-    );
-  }
-
-  const currentIndex = Math.max(0, TRACKER_STEPS.indexOf(status));
-  const progressPct = (currentIndex / (TRACKER_STEPS.length - 1)) * 86;
-
-  return (
-    <div className="order-tracker-wrap">
-      <div className="order-tracker">
-        <div className="order-tracker-progress" style={{ width: `${progressPct}%` }} />
-        {TRACKER_STEPS.map((step, i) => {
-          const state = i < currentIndex ? "done" : i === currentIndex ? "active" : "";
-          return (
-            <div key={step} className={`order-tracker-step ${state}`}>
-              <span className="order-tracker-dot">{i < currentIndex ? "✓" : i + 1}</span>
-              <span className="order-tracker-label">{statusLabel(step)}</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+import { CANCELLABLE_STATUSES, paymentBadgeClass, statusLabel } from "../utils/orderStatus";
 
 export default function OrderDetail() {
   const { id } = useParams();
@@ -57,6 +15,7 @@ export default function OrderDetail() {
   const [order, setOrder] = useState(null);
   const [error, setError] = useState("");
   const [cancelling, setCancelling] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   function load() {
     setOrder(null);
@@ -85,11 +44,11 @@ export default function OrderDetail() {
     );
   if (session.type !== "customer") return <Navigate to="/" replace />;
 
-  async function handleCancel() {
-    if (!confirm("Cancel this order?")) return;
+  async function handleCancel(remarks) {
     setCancelling(true);
     try {
-      await api.post(`/customer/orders/${id}/cancel`, { remarks: "" });
+      await api.post(`/customer/orders/${id}/cancel`, { remarks });
+      setShowCancelModal(false);
       load();
     } catch (err) {
       alert(err.message || "Could not cancel this order.");
@@ -143,9 +102,9 @@ export default function OrderDetail() {
                       className="btn btn-sm btn-danger"
                       style={{ marginTop: 20 }}
                       disabled={cancelling}
-                      onClick={handleCancel}
+                      onClick={() => setShowCancelModal(true)}
                     >
-                      {cancelling ? "Cancelling..." : "Cancel Order"}
+                      Cancel Order
                     </button>
                   )}
                 </div>
@@ -209,6 +168,15 @@ export default function OrderDetail() {
           )}
         </div>
       </section>
+
+      {showCancelModal && (
+        <CancelOrderModal
+          orderId={order?.id}
+          submitting={cancelling}
+          onClose={() => setShowCancelModal(false)}
+          onConfirm={handleCancel}
+        />
+      )}
     </>
   );
 }

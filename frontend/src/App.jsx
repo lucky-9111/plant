@@ -26,6 +26,8 @@ import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import AdminLayout from "./admin/AdminLayout";
 import AdminDashboard from "./admin/pages/Dashboard";
+import AdminOrders from "./admin/pages/Orders";
+import AdminOrderDetail from "./admin/pages/OrderDetail";
 import AdminCategories from "./admin/pages/Categories";
 import AdminPlants from "./admin/pages/Plants";
 import AdminServices from "./admin/pages/Services";
@@ -82,6 +84,8 @@ export default function App() {
         <Route path="/admin/login" element={<Navigate to="/login" replace />} />
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<AdminDashboard />} />
+          <Route path="orders" element={<AdminOrders />} />
+          <Route path="orders/:id" element={<AdminOrderDetail />} />
           <Route path="categories" element={<AdminCategories />} />
           <Route path="plants" element={<AdminPlants />} />
           <Route path="services" element={<AdminServices />} />

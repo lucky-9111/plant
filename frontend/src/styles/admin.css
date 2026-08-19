@@ -189,6 +189,62 @@ table.admin-table .row-actions {
   box-shadow: var(--shadow);
 }
 
+.admin-order-detail-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.admin-order-status-history {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.admin-order-status-history-item {
+  padding-left: 16px;
+  border-left: 3px solid var(--color-border);
+}
+
+.admin-order-status-history-item strong {
+  display: block;
+  color: var(--color-primary-dark);
+}
+
+.admin-order-status-history-item .meta {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.admin-order-item-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.admin-order-item-row:last-of-type {
+  border-bottom: none;
+}
+
+.admin-order-item-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--color-border);
+  flex-shrink: 0;
+}
+
+@media (max-width: 900px) {
+  .admin-order-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .admin-login-shell {
   min-height: 100vh;
   display: flex;

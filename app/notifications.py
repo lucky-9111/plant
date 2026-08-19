@@ -3,7 +3,10 @@ import smtplib
 import socket
 import urllib.parse
 import urllib.request
+from datetime import datetime
 from email.mime.text import MIMEText
+
+from app.settings_helper import get_settings
 
 
 class _IPv4SMTP(smtplib.SMTP):
@@ -66,3 +69,51 @@ def notify_order_status(order, old_status: str | None, new_status: str) -> None:
     customer_email = order.customer.email if order.customer else None
     send_email(customer_email, f"Order #{order.id} update - {new_status}", message)
     send_whatsapp_admin_alert(f"Order #{order.id}: {old_status or 'New'} -> {new_status}")
+
+
+def _format_order_items(order) -> str:
+    lines = [
+        f"  - {item.plant_name} x{item.quantity} - Rs.{item.line_total}" for item in order.items
+    ]
+    return "\n".join(lines) if lines else "  (no items)"
+
+
+def notify_order_cancelled(db, order, old_status: str | None, cancelled_by: str, reason: str) -> None:
+    """Send a detailed cancellation email to both the customer and the business's
+    admin contact email (from Site Settings -> Contact -> Email). cancelled_by is
+    either 'customer' or 'admin'."""
+    items_text = _format_order_items(order)
+    cancelled_at = (order.updated_at or datetime.utcnow()).strftime("%d %b %Y, %I:%M %p")
+    reason_text = reason.strip() if reason and reason.strip() else "Not specified"
+    who_label = "Customer" if cancelled_by == "customer" else "Admin"
+
+    customer_email = order.customer.email if order.customer else None
+    customer_body = (
+        "Your order has been successfully cancelled.\n\n"
+        f"Order Number: #{order.id}\n"
+        f"Status: Cancelled\n"
+        f"Cancelled At: {cancelled_at}\n"
+        f"Reason: {reason_text}\n\n"
+        f"Items:\n{items_text}\n\n"
+        f"Order Total: Rs.{order.total_amount}\n\n"
+        "If you have any questions, please contact us."
+    )
+    send_email(customer_email, f"Your Order #{order.id} Has Been Cancelled", customer_body)
+
+    admin_email = get_settings(db).get("email", "")
+    customer_name = order.customer.name if order.customer else "Unknown"
+    customer_phone = (order.customer.mobile if order.customer else "") or order.delivery_mobile
+    admin_body = (
+        f"Order #{order.id} has been cancelled.\n\n"
+        f"Customer: {customer_name}\n"
+        f"Email: {customer_email or '-'}\n"
+        f"Phone: {customer_phone or '-'}\n"
+        f"Cancelled At: {cancelled_at}\n"
+        f"Cancelled By: {who_label}\n"
+        f"Reason: {reason_text}\n"
+        f"Order Total: Rs.{order.total_amount}\n\n"
+        f"Items:\n{items_text}"
+    )
+    send_email(admin_email, f"Order Cancelled - #{order.id}", admin_body)
+
+    send_whatsapp_admin_alert(f"Order #{order.id} CANCELLED by {cancelled_by}. Reason: {reason_text}")
