@@ -85,7 +85,7 @@ export default function Plants() {
                 : "No plants found in this category yet."}
             </Empty>
           ) : (
-            <div className="grid grid-4">
+            <div className="grid grid-4 grid-plants">
               {plants.map((plant) => (
                 <PlantCard key={plant.id} plant={plant} />
               ))}

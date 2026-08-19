@@ -101,7 +101,7 @@ export default function PlantDetail() {
             <div className="section-head">
               <h2>You Might Also Like</h2>
             </div>
-            <div className="grid grid-4">
+            <div className="grid grid-4 grid-plants">
               {related.map((p) => (
                 <PlantCard key={p.id} plant={p} />
               ))}

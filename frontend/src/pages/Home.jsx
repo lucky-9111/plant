@@ -87,7 +87,7 @@ export default function Home() {
           {!featured ? (
             <Loading />
           ) : (
-            <div className="grid grid-4">
+            <div className="grid grid-4 grid-plants">
               {featured.map((plant) => (
                 <PlantCard key={plant.id} plant={plant} />
               ))}
