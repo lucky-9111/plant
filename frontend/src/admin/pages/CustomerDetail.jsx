@@ -2,14 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../../api";
 import { Loading, Empty } from "../../components/Loading";
-
-const WARNING_STATUSES = ["Cancelled", "Returned", "Refund Initiated", "Refund Completed"];
-
-function statusBadgeClass(status) {
-  if (status === "Delivered") return "badge-accent";
-  if (WARNING_STATUSES.includes(status)) return "badge-gold";
-  return "badge-muted";
-}
+import { statusBadgeClass } from "../../utils/orderStatus";
 
 export default function CustomerDetail() {
   const { id } = useParams();

@@ -20,7 +20,7 @@ from app.models import (
     Plant,
     WishlistItem,
 )
-from app.notifications import notify_order_status, send_email
+from app.notifications import notify_order_cancelled, notify_order_status, send_email
 from app.payments import create_razorpay_order, verify_payment_signature
 from app.schemas import (
     AddressIn,
@@ -657,5 +657,5 @@ def cancel_order(
     db.commit()
 
     order = get_or_404_order(db, order_id, customer_id)
-    notify_order_status(order, old_status, "Cancelled")
+    notify_order_cancelled(db, order, old_status, cancelled_by="customer", reason=payload.remarks)
     return order

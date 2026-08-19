@@ -217,7 +217,7 @@ def unified_login(payload: UnifiedLoginIn, request: Request, db: Session = Depen
     admin = db.query(AdminUser).filter(AdminUser.username == identifier).first()
     if admin:
         if not verify_password(payload.password, admin.hashed_password):
-            raise HTTPException(status_code=401, detail="Invalid username or password")
+            raise HTTPException(status_code=401, detail="Invalid email or password")
         request.session["admin_username"] = admin.username
         request.session.pop("customer_id", None)
         log_activity(db, admin.username, "login")
@@ -238,7 +238,7 @@ def unified_login(payload: UnifiedLoginIn, request: Request, db: Session = Depen
         db.commit()
         return {"type": "customer", "id": customer.id, "name": customer.name, "email": customer.email}
 
-    raise HTTPException(status_code=401, detail="Invalid credentials")
+    raise HTTPException(status_code=401, detail="Invalid email or password")
 
 
 @router.post("/auth/logout")

@@ -1,16 +1,18 @@
 import os
+from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from slugify import slugify
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.auth import hash_password, verify_password
 from app.database import BASE_DIR, get_db
 from app.deps import get_current_admin, get_current_developer
 from app.models import (
+    CANCELLABLE_STATUSES,
     FAQ,
     AdminActivityLog,
     AdminUser,
@@ -20,14 +22,18 @@ from app.models import (
     CustomerActivityLog,
     GalleryImage,
     Inquiry,
+    MAIN_STATUSES,
     Order,
     OrderItem,
+    OrderStatusHistory,
+    PAYMENT_STATUSES,
     Plant,
     PricingPlan,
     Service,
     SiteSetting,
     Testimonial,
 )
+from app.notifications import notify_order_cancelled, notify_order_status
 from app.schemas import (
     ActivityLogOut,
     AdminPasswordResetIn,
@@ -48,6 +54,10 @@ from app.schemas import (
     InquiryOut,
     InquiryStatusIn,
     LoginIn,
+    OrderAdminUpdateIn,
+    OrderCancelIn,
+    OrderOut,
+    OrderSummaryOut,
     PlantIn,
     PlantOut,
     PricingPlanIn,
@@ -742,6 +752,185 @@ def delete_inquiry(
     item = get_or_404(db, Inquiry, item_id)
     db.delete(item)
     db.commit()
+
+
+# ---------- Orders ----------
+
+
+def _get_order_or_404(db: Session, order_id: int) -> Order:
+    order = (
+        db.query(Order)
+        .options(joinedload(Order.items), joinedload(Order.history), joinedload(Order.customer))
+        .filter(Order.id == order_id)
+        .first()
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return order
+
+
+def _validate_status_transition(current: str, new: str) -> None:
+    if new == current:
+        raise HTTPException(status_code=400, detail="Order is already in this status")
+    if new == "Cancelled":
+        raise HTTPException(
+            status_code=400, detail="Use the Cancel Order action to cancel this order"
+        )
+    if current not in MAIN_STATUSES:
+        raise HTTPException(
+            status_code=400, detail=f"Order is {current} and its status can no longer be changed"
+        )
+    if new not in MAIN_STATUSES:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    if MAIN_STATUSES.index(new) < MAIN_STATUSES.index(current):
+        raise HTTPException(
+            status_code=400, detail=f"Cannot move status backward from {current} to {new}"
+        )
+
+
+@router.get("/orders", response_model=list[OrderSummaryOut])
+def list_orders(
+    response: Response,
+    search: Optional[str] = None,
+    status: Optional[str] = None,
+    page: Optional[int] = None,
+    limit: Optional[int] = None,
+    admin: str = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    query = (
+        db.query(Order)
+        .options(joinedload(Order.items), joinedload(Order.customer))
+        .join(Customer)
+    )
+
+    if search:
+        term = search.strip()
+        like = f"%{term}%"
+        conditions = [
+            Customer.name.ilike(like),
+            Customer.email.ilike(like),
+            Customer.mobile.ilike(like),
+            Order.delivery_name.ilike(like),
+            Order.delivery_mobile.ilike(like),
+        ]
+        digits = "".join(ch for ch in term if ch.isdigit())
+        if digits:
+            conditions.append(Order.id == int(digits))
+        query = query.filter(or_(*conditions))
+
+    if status:
+        query = query.filter(Order.status == status)
+
+    query = query.order_by(Order.created_at.desc())
+    total = query.count()
+
+    if page is None and limit is None:
+        items = query.all()
+        page = 1
+        limit = total or 1
+    else:
+        page = max(page or 1, 1)
+        limit = min(max(limit or 20, 1), 100)
+        items = query.offset((page - 1) * limit).limit(limit).all()
+
+    response.headers["X-Total-Count"] = str(total)
+    response.headers["X-Page"] = str(page)
+    response.headers["X-Total-Pages"] = str(max(1, -(-total // limit)))
+    return items
+
+
+@router.get("/orders/{order_id}", response_model=OrderOut)
+def get_order(order_id: int, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
+    return _get_order_or_404(db, order_id)
+
+
+@router.put("/orders/{order_id}/status", response_model=OrderOut)
+def update_order_status(
+    order_id: int,
+    payload: OrderAdminUpdateIn,
+    admin: str = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    order = _get_order_or_404(db, order_id)
+    old_status = order.status
+    status_changed = False
+
+    if payload.status is not None and payload.status != order.status:
+        _validate_status_transition(order.status, payload.status)
+        order.status = payload.status
+        status_changed = True
+        if order.status == "Delivered":
+            order.delivered_at = datetime.utcnow()
+
+    if payload.tracking_number is not None:
+        order.tracking_number = payload.tracking_number
+    if payload.delivery_partner is not None:
+        order.delivery_partner = payload.delivery_partner
+    if payload.expected_delivery_date is not None:
+        order.expected_delivery_date = payload.expected_delivery_date
+    if payload.notes is not None:
+        order.notes = payload.notes
+    if payload.payment_status is not None:
+        if payload.payment_status not in PAYMENT_STATUSES:
+            raise HTTPException(status_code=400, detail="Invalid payment status")
+        order.payment_status = payload.payment_status
+
+    if status_changed:
+        db.add(
+            OrderStatusHistory(
+                order_id=order.id,
+                old_status=old_status,
+                new_status=order.status,
+                updated_by=admin,
+                remarks=payload.remarks or f"Status updated to {order.status}",
+            )
+        )
+    db.commit()
+
+    order = _get_order_or_404(db, order_id)
+    if status_changed:
+        log_activity(db, admin, "order_status_update", f"Order #{order.id}: {old_status} -> {order.status}")
+        notify_order_status(order, old_status, order.status)
+    return order
+
+
+@router.post("/orders/{order_id}/cancel", response_model=OrderOut)
+def admin_cancel_order(
+    order_id: int,
+    payload: OrderCancelIn,
+    admin: str = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    order = _get_order_or_404(db, order_id)
+    if order.status not in CANCELLABLE_STATUSES:
+        raise HTTPException(
+            status_code=400, detail=f"Orders can no longer be cancelled once they are {order.status}"
+        )
+
+    for item in order.items:
+        if item.plant_id:
+            plant = db.query(Plant).filter(Plant.id == item.plant_id).first()
+            if plant:
+                plant.stock_quantity += item.quantity
+
+    old_status = order.status
+    order.status = "Cancelled"
+    db.add(
+        OrderStatusHistory(
+            order_id=order.id,
+            old_status=old_status,
+            new_status="Cancelled",
+            updated_by=admin,
+            remarks=payload.remarks or "Cancelled by admin",
+        )
+    )
+    db.commit()
+
+    order = _get_order_or_404(db, order_id)
+    log_activity(db, admin, "order_cancel", f"Order #{order.id} cancelled")
+    notify_order_cancelled(db, order, old_status, cancelled_by="admin", reason=payload.remarks)
+    return order
 
 
 # ---------- Customers ----------

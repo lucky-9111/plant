@@ -19,6 +19,7 @@ export default function Signup() {
   // by CartContext (e.g. its cart refresh effect firing after session changes)
   // can re-run that redirect and overwrite our own in-flight navigate() call.
   const navigatedRef = useRef(false);
+  const submittingRef = useRef(false);
 
   if (session === null) {
     // not logged in, show the form below
@@ -29,6 +30,8 @@ export default function Signup() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setLoading(true);
     setError("");
     try {
@@ -42,8 +45,9 @@ export default function Signup() {
         navigate(location.state?.from || "/", { replace: true });
       }
     } catch (err) {
-      setError(err.message || "Sign up failed.");
+      setError(err.message || "Unable to create account. Please try again.");
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   }
