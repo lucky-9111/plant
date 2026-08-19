@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
@@ -65,9 +66,25 @@ def serve_home():
         return FileResponse(FRONTEND_DIST / "index.html")
     return {"message": "Frontend not built"}
 
+SESSION_SECRET_KEY = os.environ.get("SESSION_SECRET_KEY")
+if not SESSION_SECRET_KEY:
+    raise RuntimeError(
+        "SESSION_SECRET_KEY environment variable is not set. "
+        "Copy .env.example to .env and set a random secret before starting the server "
+        "(login/admin sessions cannot be signed safely without it)."
+    )
+
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET_KEY)
+
+# Dev-only: allow the Vite dev server (or direct API calls) from localhost and
+# any private LAN IP to hit this API with cookies, so a second laptop on the
+# same Wi-Fi can be used for testing. Not safe for production as-is.
 app.add_middleware(
-    SessionMiddleware,
-    secret_key=os.environ.get("SESSION_SECRET_KEY", "aaiji-nursery-dev-secret-change-me"),
+    CORSMiddleware,
+    allow_origin_regex=r"^http://(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(api_public.router)

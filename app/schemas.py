@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class CategoryOut(BaseModel):
@@ -269,23 +269,23 @@ class CustomerOut(BaseModel):
 
 class CustomerRegisterIn(BaseModel):
     name: str
-    email: str
+    email: EmailStr
     mobile: str = ""
-    password: str
+    password: str = Field(min_length=8)
 
 
 class CustomerLoginIn(BaseModel):
-    email: str
+    email: EmailStr
     password: str
 
 
 class ForgotPasswordIn(BaseModel):
-    email: str
+    email: EmailStr
 
 
 class ResetPasswordIn(BaseModel):
     token: str
-    password: str
+    password: str = Field(min_length=8)
 
 
 class CartPlantOut(BaseModel):
