@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../../api";
 import { Loading, Empty } from "../../components/Loading";
@@ -22,6 +22,8 @@ export default function AdminOrderDetail() {
   const [cancelling, setCancelling] = useState(false);
   const [actionError, setActionError] = useState("");
   const [toast, setToast] = useState("");
+  const statusSubmittingRef = useRef(false);
+  const cancelSubmittingRef = useRef(false);
 
   function load() {
     setOrder(null);
@@ -44,6 +46,8 @@ export default function AdminOrderDetail() {
   }, [toast]);
 
   async function confirmStatusUpdate() {
+    if (statusSubmittingRef.current) return;
+    statusSubmittingRef.current = true;
     setUpdating(true);
     setActionError("");
     try {
@@ -54,11 +58,14 @@ export default function AdminOrderDetail() {
     } catch (err) {
       setActionError(err.message || "Unable to update order status. Please try again.");
     } finally {
+      statusSubmittingRef.current = false;
       setUpdating(false);
     }
   }
 
   async function handleCancel(remarks) {
+    if (cancelSubmittingRef.current) return;
+    cancelSubmittingRef.current = true;
     setCancelling(true);
     setActionError("");
     try {
@@ -69,6 +76,7 @@ export default function AdminOrderDetail() {
     } catch (err) {
       setActionError(err.message || "Unable to cancel this order. Please try again.");
     } finally {
+      cancelSubmittingRef.current = false;
       setCancelling(false);
     }
   }
@@ -243,7 +251,10 @@ export default function AdminOrderDetail() {
                     type="button"
                     className="btn btn-primary btn-block"
                     disabled={selectedStatus === order.status}
-                    onClick={() => setConfirmingStatus(selectedStatus)}
+                    onClick={() => {
+                      setActionError("");
+                      setConfirmingStatus(selectedStatus);
+                    }}
                   >
                     Update Status
                   </button>
@@ -257,7 +268,10 @@ export default function AdminOrderDetail() {
                   type="button"
                   className="btn btn-danger btn-block"
                   style={{ marginTop: 12 }}
-                  onClick={() => setShowCancelModal(true)}
+                  onClick={() => {
+                    setActionError("");
+                    setShowCancelModal(true);
+                  }}
                 >
                   Cancel Order
                 </button>
@@ -302,7 +316,7 @@ export default function AdminOrderDetail() {
                 disabled={updating}
                 onClick={confirmStatusUpdate}
               >
-                {updating ? "Updating..." : "Confirm Update"}
+                {updating ? "Updating status..." : "Confirm Update"}
               </button>
             </div>
           </div>
@@ -313,7 +327,11 @@ export default function AdminOrderDetail() {
         <CancelOrderModal
           orderId={order?.id}
           submitting={cancelling}
-          onClose={() => setShowCancelModal(false)}
+          error={actionError}
+          onClose={() => {
+            setShowCancelModal(false);
+            setActionError("");
+          }}
           onConfirm={handleCancel}
         />
       )}

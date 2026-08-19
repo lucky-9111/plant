@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { CANCELLATION_REASONS } from "../utils/orderStatus";
 
-export default function CancelOrderModal({ orderId, onClose, onConfirm, submitting }) {
+export default function CancelOrderModal({ orderId, onClose, onConfirm, submitting, error }) {
   const [reason, setReason] = useState(CANCELLATION_REASONS[0]);
   const [otherText, setOtherText] = useState("");
 
@@ -20,6 +20,12 @@ export default function CancelOrderModal({ orderId, onClose, onConfirm, submitti
         <p style={{ color: "var(--color-text-muted)" }}>
           Are you sure you want to cancel this order? This cannot be undone.
         </p>
+
+        {error && (
+          <div className="alert alert-error" style={{ marginBottom: 16 }}>
+            {error}
+          </div>
+        )}
 
         <div className="form-group">
           <label htmlFor="cancel-reason">Reason for cancellation</label>
@@ -67,7 +73,7 @@ export default function CancelOrderModal({ orderId, onClose, onConfirm, submitti
             onClick={handleConfirm}
             disabled={submitting}
           >
-            {submitting ? "Cancelling..." : "Yes, Cancel Order"}
+            {submitting ? "Cancelling order..." : "Yes, Cancel Order"}
           </button>
         </div>
       </div>

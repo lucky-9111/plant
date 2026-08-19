@@ -196,6 +196,14 @@ table.admin-table .row-actions {
   align-items: start;
 }
 
+/* Grid columns default to a min-width based on their content's intrinsic
+   (min-content) size, which lets a wide descendant (e.g. the status tracker)
+   force the whole column — and everything below it — wider than the
+   viewport. min-width: 0 lets these columns actually shrink to fit. */
+.admin-order-detail-grid > div {
+  min-width: 0;
+}
+
 .admin-order-status-history {
   display: flex;
   flex-direction: column;
@@ -242,6 +250,85 @@ table.admin-table .row-actions {
 @media (max-width: 900px) {
   .admin-order-detail-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Admin orders: mobile ---------- */
+
+.admin-order-cards {
+  display: none;
+}
+
+.admin-order-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.admin-order-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.admin-order-card-id {
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.admin-order-card-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.88rem;
+  padding: 6px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.admin-order-card-row:first-of-type {
+  border-top: none;
+}
+
+.admin-order-card-row .label {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.admin-order-card-row .value {
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.admin-order-card .btn-block {
+  margin-top: 12px;
+}
+
+@media (max-width: 700px) {
+  .admin-orders-table-wrap {
+    display: none;
+  }
+
+  .admin-order-cards {
+    display: block;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-content {
+    padding: 18px;
+  }
+
+  .admin-form-card {
+    padding: 20px;
+  }
+
+  .admin-page-head h1 {
+    font-size: 1.3rem;
   }
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
@@ -16,6 +16,8 @@ export default function OrderDetail() {
   const [error, setError] = useState("");
   const [cancelling, setCancelling] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelError, setCancelError] = useState("");
+  const cancelSubmittingRef = useRef(false);
 
   function load() {
     setOrder(null);
@@ -45,14 +47,18 @@ export default function OrderDetail() {
   if (session.type !== "customer") return <Navigate to="/" replace />;
 
   async function handleCancel(remarks) {
+    if (cancelSubmittingRef.current) return;
+    cancelSubmittingRef.current = true;
     setCancelling(true);
+    setCancelError("");
     try {
       await api.post(`/customer/orders/${id}/cancel`, { remarks });
       setShowCancelModal(false);
       load();
     } catch (err) {
-      alert(err.message || "Could not cancel this order.");
+      setCancelError(err.message || "Unable to cancel this order. Please try again.");
     } finally {
+      cancelSubmittingRef.current = false;
       setCancelling(false);
     }
   }
@@ -173,7 +179,11 @@ export default function OrderDetail() {
         <CancelOrderModal
           orderId={order?.id}
           submitting={cancelling}
-          onClose={() => setShowCancelModal(false)}
+          error={cancelError}
+          onClose={() => {
+            setShowCancelModal(false);
+            setCancelError("");
+          }}
           onConfirm={handleCancel}
         />
       )}

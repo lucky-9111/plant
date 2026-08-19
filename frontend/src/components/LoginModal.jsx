@@ -31,6 +31,11 @@ export default function LoginModal() {
   // by CartContext (e.g. its cart refresh effect firing after session changes)
   // can re-run that redirect and overwrite our own in-flight navigate() call.
   const navigatedRef = useRef(false);
+  // setLoading(true) doesn't disable the submit button until React commits the
+  // re-render, which happens a tick later — a fast double-click (or a synthetic
+  // double-fire) can slip two submits through before that. This ref blocks
+  // re-entry synchronously, independent of render timing.
+  const submittingRef = useRef(false);
   const firstFieldRef = useRef(null);
   const cardRef = useRef(null);
 
@@ -101,6 +106,8 @@ export default function LoginModal() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setLoading(true);
     setError("");
     try {
@@ -122,8 +129,9 @@ export default function LoginModal() {
         }
       }
     } catch (err) {
-      setError(err.message || "Login failed.");
+      setError(err.message || "Invalid email or password.");
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   }
@@ -193,7 +201,7 @@ export default function LoginModal() {
       </form>
 
       <p className="auth-modal-footer-text">
-        New here? <Link to="/signup" state={location.state}>Create an account</Link>
+        New here? <Link to="/signup" state={{ from: fromPath }}>Create an account</Link>
       </p>
 
       {!isOverlay && (

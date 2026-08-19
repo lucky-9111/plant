@@ -101,7 +101,7 @@ export default function AdminOrders() {
           <p style={{ color: "var(--color-text-muted)", fontSize: "0.9rem" }}>
             {result.total} order{result.total !== 1 ? "s" : ""} found
           </p>
-          <div className="admin-table-wrap">
+          <div className="admin-table-wrap admin-orders-table-wrap">
             <table className="admin-table">
               <thead>
                 <tr>
@@ -145,6 +145,51 @@ export default function AdminOrders() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Below 700px this replaces the table — a wide multi-column table
+              can only be made to fit a phone screen by scrolling, which
+              hides most of the data by default; stacked cards keep every
+              field visible without horizontal scrolling. */}
+          <div className="admin-order-cards">
+            {result.items.map((o) => (
+              <div key={o.id} className="admin-order-card">
+                <div className="admin-order-card-head">
+                  <span className="admin-order-card-id">Order #{o.id}</span>
+                  <span className={`badge ${statusBadgeClass(o.status)}`}>{o.status}</span>
+                </div>
+                <div className="admin-order-card-row">
+                  <span className="label">Customer</span>
+                  <span className="value">{o.customer?.name || "-"}</span>
+                </div>
+                <div className="admin-order-card-row">
+                  <span className="label">Contact</span>
+                  <span className="value">
+                    {o.customer?.email || "-"}
+                    {o.customer?.mobile ? <><br />{o.customer.mobile}</> : null}
+                  </span>
+                </div>
+                <div className="admin-order-card-row">
+                  <span className="label">Placed</span>
+                  <span className="value">{new Date(o.created_at).toLocaleDateString()}</span>
+                </div>
+                <div className="admin-order-card-row">
+                  <span className="label">Total</span>
+                  <span className="value">&#8377;{o.total_amount}</span>
+                </div>
+                <div className="admin-order-card-row">
+                  <span className="label">Payment</span>
+                  <span className="value">
+                    <span className={`badge ${paymentBadgeClass(o.payment_status)}`}>
+                      {o.payment_status}
+                    </span>
+                  </span>
+                </div>
+                <Link className="btn btn-primary btn-block btn-sm" to={`/admin/orders/${o.id}`}>
+                  View Order
+                </Link>
+              </div>
+            ))}
           </div>
 
           {result.pages > 1 && (

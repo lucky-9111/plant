@@ -15,7 +15,7 @@ export default function OrderTracker({ status }) {
   return (
     <div className="order-tracker-wrap">
       <div className="order-tracker">
-        <div className="order-tracker-progress" style={{ width: `${progressPct}%` }} />
+        <div className="order-tracker-progress" style={{ "--progress": `${progressPct}%` }} />
         {TRACKER_STEPS.map((step, i) => {
           const state = i < currentIndex ? "done" : i === currentIndex ? "active" : "";
           return (

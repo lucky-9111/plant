@@ -2247,6 +2247,7 @@ button.wishlist-btn.card-wishlist-btn.active {
   top: 15px;
   left: 7%;
   height: 3px;
+  width: var(--progress);
   background: var(--color-accent);
   transition: width 0.3s ease;
 }
@@ -2296,6 +2297,56 @@ button.wishlist-btn.card-wishlist-btn.active {
 .order-tracker-step.active .order-tracker-label {
   color: var(--color-text);
   font-weight: 600;
+}
+
+/* Below this width the 7-step horizontal tracker doesn't have room to lay
+   out legibly, so it switches to a vertical list instead of relying on
+   horizontal scroll to hide the problem. */
+@media (max-width: 640px) {
+  .order-tracker-wrap {
+    overflow-x: visible;
+    margin: 20px 0 4px;
+  }
+
+  .order-tracker {
+    min-width: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 18px;
+    padding: 4px 0;
+  }
+
+  .order-tracker::before {
+    top: 4px;
+    bottom: 4px;
+    left: 15px;
+    right: auto;
+    width: 3px;
+    height: auto;
+  }
+
+  .order-tracker-progress {
+    top: 4px;
+    left: 15px;
+    width: 3px;
+    height: var(--progress);
+  }
+
+  .order-tracker-step {
+    flex-direction: row;
+    align-items: center;
+    text-align: left;
+    gap: 12px;
+  }
+
+  .order-tracker-dot {
+    flex-shrink: 0;
+  }
+
+  .order-tracker-label {
+    margin-top: 0;
+    white-space: normal;
+  }
 }
 
 /* ---------- Auth modal ---------- */
