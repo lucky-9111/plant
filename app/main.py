@@ -12,13 +12,15 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.database import Base, engine
+from app.database import Base, SessionLocal, engine
 from app.routers import api_admin, api_customer, api_public
+from app.seed_data import seed_if_empty
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 
 Base.metadata.create_all(bind=engine)
+seed_if_empty(SessionLocal)
 
 with engine.connect() as conn:
     existing_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(inquiries)"))}
