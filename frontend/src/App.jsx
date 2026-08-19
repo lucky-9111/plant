@@ -74,7 +74,8 @@ export default function App() {
           <Route path="/blog" element={<Blog />} />
           <Route path="/blog/:slug" element={<BlogPost />} />
         </Route>
-        {/* Fallback full-page login for direct URL visits/refreshes, i.e. when there's no background page to overlay */}
+        {/* Fallback full-page auth screens for direct URL visits/refreshes, i.e. when
+            there's no background page to overlay. Mirrored below as overlay routes. */}
         <Route path="/login" element={<LoginModal />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -105,6 +106,9 @@ export default function App() {
       {backgroundLocation && (
         <Routes>
           <Route path="/login" element={<LoginModal />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
         </Routes>
       )}
     </>

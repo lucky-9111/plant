@@ -3,7 +3,7 @@ import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import { useWishlist } from "../context/WishlistContext";
-import logoImg from "../assets/logo.png";
+import AuthShell from "../components/AuthShell";
 
 export default function Signup() {
   const { session, register } = useAuth();
@@ -49,64 +49,58 @@ export default function Signup() {
   }
 
   return (
-    <div className="admin-login-shell">
-      <div className="admin-login-card">
-        <Link to="/" className="brand" style={{ color: "var(--color-primary)", marginBottom: 20 }}>
-          <img src={logoImg} alt="Aaiji Nursery" className="admin-login-logo" />
-        </Link>
-        <h1 style={{ fontSize: "1.3rem" }}>Create Account</h1>
-        {error && <div className="alert alert-error">{error}</div>}
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="name">Name</label>
-            <input
-              id="name"
-              className="form-control"
-              required
-              autoFocus
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="email">Email</label>
-            <input
-              id="email"
-              type="email"
-              className="form-control"
-              required
-              value={form.email}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="mobile">Mobile</label>
-            <input
-              id="mobile"
-              className="form-control"
-              value={form.mobile}
-              onChange={(e) => setForm((f) => ({ ...f, mobile: e.target.value }))}
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              type="password"
-              className="form-control"
-              required
-              value={form.password}
-              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-            />
-          </div>
-          <button className="btn btn-primary btn-block" disabled={loading}>
-            {loading ? "Creating account..." : "Sign Up"}
-          </button>
-        </form>
-        <p style={{ marginTop: 16, fontSize: "0.9rem", textAlign: "center" }}>
-          Already have an account? <Link to="/login">Login</Link>
-        </p>
-      </div>
-    </div>
+    <AuthShell title="Create Account" subtitle="Join Aaiji Nursery to start shopping.">
+      {error && <div className="alert alert-error">{error}</div>}
+      <form onSubmit={handleSubmit}>
+        <div className="form-group">
+          <label htmlFor="name">Name</label>
+          <input
+            id="name"
+            className="form-control"
+            required
+            autoFocus
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+          />
+        </div>
+        <div className="form-group">
+          <label htmlFor="email">Email</label>
+          <input
+            id="email"
+            type="email"
+            className="form-control"
+            required
+            value={form.email}
+            onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+          />
+        </div>
+        <div className="form-group">
+          <label htmlFor="mobile">Mobile</label>
+          <input
+            id="mobile"
+            className="form-control"
+            value={form.mobile}
+            onChange={(e) => setForm((f) => ({ ...f, mobile: e.target.value }))}
+          />
+        </div>
+        <div className="form-group">
+          <label htmlFor="password">Password</label>
+          <input
+            id="password"
+            type="password"
+            className="form-control"
+            required
+            value={form.password}
+            onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+          />
+        </div>
+        <button className="btn btn-primary btn-block" disabled={loading}>
+          {loading ? "Creating account..." : "Sign Up"}
+        </button>
+      </form>
+      <p className="auth-modal-footer-text">
+        Already have an account? <Link to="/login" state={location.state}>Login</Link>
+      </p>
+    </AuthShell>
   );
 }
