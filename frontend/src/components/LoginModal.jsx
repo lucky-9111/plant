@@ -127,7 +127,7 @@ export default function LoginModal() {
       </form>
 
       <p className="auth-modal-footer-text">
-        New here? <Link to="/signup" state={{ from: fromPath }}>Create an account</Link>
+        New here? <Link to="/signup" state={location.state}>Create an account</Link>
       </p>
     </AuthShell>
   );
