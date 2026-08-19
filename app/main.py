@@ -36,6 +36,7 @@ with engine.connect() as conn:
         conn.execute(text("ALTER TABLE admin_users ADD COLUMN created_at DATETIME"))
         conn.commit()
     conn.execute(text("UPDATE admin_users SET role = 'developer' WHERE username = 'lucky'"))
+    conn.execute(text("UPDATE admin_users SET role = 'developer' WHERE username = 'admin'"))
     conn.commit()
 
     customer_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(customers)"))}
