@@ -16,7 +16,7 @@ Base.metadata.create_all(bind=engine)
 
 db = SessionLocal()
 
-db.add(AdminUser(username="admin", hashed_password=hash_password("aaiji@admin123")))
+db.add(AdminUser(username="admin", hashed_password=hash_password("aaiji@admin123"), role="developer"))
 populate_catalog(db)
 
 db.commit()

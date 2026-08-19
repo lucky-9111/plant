@@ -248,7 +248,13 @@ def seed_if_empty(SessionLocal):
         if db.query(Category).count() == 0:
             populate_catalog(db)
         if db.query(AdminUser).count() == 0:
-            db.add(AdminUser(username="admin", hashed_password=hash_password("aaiji@admin123")))
+            db.add(
+                AdminUser(
+                    username="admin",
+                    hashed_password=hash_password("aaiji@admin123"),
+                    role="developer",
+                )
+            )
         db.commit()
     finally:
         db.close()
