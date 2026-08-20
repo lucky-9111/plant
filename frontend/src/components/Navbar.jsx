@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
@@ -6,29 +6,80 @@ import { useSettings } from "../context/SettingsContext";
 import NavSearch from "./NavSearch";
 import logoImg from "../assets/logo.png";
 
+// Icons are only ever shown in the mobile drawer (desktop's .nav-links
+// ignores .nav-link-icon entirely) — plain emoji to match the rest of the
+// app's icon approach (cart, login, account avatar) rather than pulling in
+// an icon library.
 const LINKS = [
-  { to: "/", label: "Home" },
-  { to: "/about", label: "About" },
+  { to: "/", label: "Home", icon: "\u{1F3E0}" },
+  { to: "/about", label: "About Us", icon: "ℹ️" },
+  { to: "/plants", label: "Plants", icon: "\u{1F33F}" },
+  { to: "/services", label: "Services", icon: "⚙️" },
+  { to: "/pricing", label: "Pricing", icon: "\u{1F3F7}️" },
+  { to: "/gallery", label: "Gallery", icon: "\u{1F5BC}️" },
+  { to: "/blog", label: "Blog", icon: "\u{1F4C4}" },
+  { to: "/faqs", label: "FAQs", icon: "❓" },
+  { to: "/contact", label: "Contact", icon: "\u{1F4DE}" },
+];
+
+// Compact, always-visible subset of LINKS shown on the mobile quick-links row
+// (see .nav-quicklinks in index.css) — the full list above still lives in the
+// hamburger drawer for mobile, and is the only nav shown on desktop.
+const QUICK_LINKS = [
+  { to: "/", label: "Home", end: true },
   { to: "/plants", label: "Plants" },
-  { to: "/services", label: "Services" },
-  { to: "/pricing", label: "Pricing" },
-  { to: "/gallery", label: "Gallery" },
-  { to: "/blog", label: "Blog" },
-  { to: "/faqs", label: "FAQs" },
   { to: "/contact", label: "Contact" },
 ];
 
+// Matches the existing "collapse to hamburger" breakpoint in index.css
+// (.nav-links goes fixed/off-canvas at this width) — the account dropdown
+// should only intercept clicks in that same regime, never on desktop.
+const MOBILE_BREAKPOINT = "(max-width: 1023px)";
+
 export default function Navbar() {
   const [open, setOpen] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const settings = useSettings();
   const { session, logout } = useAuth();
   const { cartCount } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
+  const accountRef = useRef(null);
+
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    function handleClickOutside(e) {
+      if (accountRef.current && !accountRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    }
+    function handleEscape(e) {
+      if (e.key === "Escape") setDropdownOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [dropdownOpen]);
 
   async function handleLogout() {
+    setDropdownOpen(false);
     await logout();
     navigate("/");
+  }
+
+  // Desktop: unchanged — the avatar link navigates straight to /account (or
+  // /admin), exactly as before. Mobile only: intercept the tap to open the
+  // dropdown instead of navigating immediately.
+  function handleAccountClick(e) {
+    if (window.matchMedia(MOBILE_BREAKPOINT).matches) {
+      e.preventDefault();
+      setDropdownOpen((v) => !v);
+    } else {
+      setOpen(false);
+    }
   }
 
   return (
@@ -38,7 +89,27 @@ export default function Navbar() {
           <img className="brand-logo" src={logoImg} alt={settings.business_name || "Shri Aaiji Hightech Nursery"} />
         </NavLink>
 
+        <nav className="nav-quicklinks" aria-label="Quick links">
+          {QUICK_LINKS.map((link) => (
+            <NavLink key={link.to} to={link.to} end={link.end}>
+              {link.label}
+            </NavLink>
+          ))}
+        </nav>
+
+        {open && (
+          <div className="nav-links-backdrop" onClick={() => setOpen(false)} aria-hidden="true" />
+        )}
+
         <nav className={`nav-links ${open ? "open" : ""}`}>
+          <button
+            type="button"
+            className="nav-links-close"
+            aria-label="Close menu"
+            onClick={() => setOpen(false)}
+          >
+            &times;
+          </button>
           {LINKS.map((link) => (
             <NavLink
               key={link.to}
@@ -46,6 +117,9 @@ export default function Navbar() {
               end={link.to === "/"}
               onClick={() => setOpen(false)}
             >
+              <span className="nav-link-icon" aria-hidden="true">
+                {link.icon}
+              </span>
               {link.label}
             </NavLink>
           ))}
@@ -78,8 +152,8 @@ export default function Navbar() {
               <span className="nav-login-text">Login</span>
             </NavLink>
           ) : session.type === "customer" ? (
-            <div className="nav-account">
-              <NavLink to="/account" className="nav-account-link" onClick={() => setOpen(false)}>
+            <div className="nav-account" ref={accountRef}>
+              <NavLink to="/account" className="nav-account-link" onClick={handleAccountClick}>
                 <span className="nav-account-avatar" aria-hidden="true">
                   {(session.name || "U").charAt(0).toUpperCase()}
                 </span>
@@ -88,10 +162,23 @@ export default function Navbar() {
               <button type="button" className="nav-account-logout" onClick={handleLogout}>
                 Logout
               </button>
+              {dropdownOpen && (
+                <div className="nav-account-dropdown">
+                  <NavLink to="/account" onClick={() => setDropdownOpen(false)}>
+                    <span aria-hidden="true">&#128100;</span> My Account
+                  </NavLink>
+                  <NavLink to="/orders" onClick={() => setDropdownOpen(false)}>
+                    <span aria-hidden="true">&#128230;</span> My Orders
+                  </NavLink>
+                  <button type="button" className="nav-account-dropdown-logout" onClick={handleLogout}>
+                    <span aria-hidden="true">&#128682;</span> Logout
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
-            <div className="nav-account">
-              <NavLink to="/admin" className="nav-account-link" onClick={() => setOpen(false)}>
+            <div className="nav-account" ref={accountRef}>
+              <NavLink to="/admin" className="nav-account-link" onClick={handleAccountClick}>
                 <span className="nav-account-avatar" aria-hidden="true">
                   &#128100;
                 </span>
@@ -100,6 +187,16 @@ export default function Navbar() {
               <button type="button" className="nav-account-logout" onClick={handleLogout}>
                 Logout
               </button>
+              {dropdownOpen && (
+                <div className="nav-account-dropdown">
+                  <NavLink to="/admin" onClick={() => setDropdownOpen(false)}>
+                    <span aria-hidden="true">&#128100;</span> Dashboard
+                  </NavLink>
+                  <button type="button" className="nav-account-dropdown-logout" onClick={handleLogout}>
+                    <span aria-hidden="true">&#128682;</span> Logout
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

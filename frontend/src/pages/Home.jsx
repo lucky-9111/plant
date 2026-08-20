@@ -3,17 +3,26 @@ import { Link } from "react-router-dom";
 import { api } from "../api";
 import { useSettings } from "../context/SettingsContext";
 import PlantCard from "../components/PlantCard";
+import PlantCarousel from "../components/PlantCarousel";
 import PlantExplorer from "../components/PlantExplorer";
 import Stars from "../components/Stars";
 import Avatar from "../components/Avatar";
 import { Loading } from "../components/Loading";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
+const CAROUSEL_ITEM_LIMIT = 8;
+
 export default function Home() {
   const settings = useSettings();
   const [categories, setCategories] = useState(null);
   const [featured, setFeatured] = useState(null);
   const [testimonials, setTestimonials] = useState(null);
+  // Small per-category plant lists for the mobile-only carousels below —
+  // keyed by category slug, filled in as each request resolves. Desktop
+  // never reads this (it keeps the existing "Shop by Category" tiles +
+  // "Featured Plants" grid instead), so there's no cost to fetching it
+  // lazily like this.
+  const [categoryPlants, setCategoryPlants] = useState({});
 
   useDocumentTitle(
     `${settings.business_name || "Aaiji Nursery"} - ${settings.tagline || "Plant Nursery & Landscaping"}`
@@ -24,6 +33,15 @@ export default function Home() {
     api.get("/plants?featured=true").then(setFeatured);
     api.get("/testimonials").then((data) => setTestimonials(data.slice(0, 3)));
   }, []);
+
+  useEffect(() => {
+    if (!categories) return;
+    categories.forEach((cat) => {
+      api.get(`/plants?category=${cat.slug}&limit=${CAROUSEL_ITEM_LIMIT}`).then((data) => {
+        setCategoryPlants((prev) => ({ ...prev, [cat.slug]: data }));
+      });
+    });
+  }, [categories]);
 
   return (
     <>
@@ -52,9 +70,29 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Mobile-only horizontal browsing (see .landing-mobile-only in
+          index.css) — desktop keeps the "Shop by Category" tiles and
+          "Featured Plants" grid below instead, completely unchanged. */}
+      <div className="landing-mobile-only">
+        <div className="container">
+          {featured && featured.length > 0 && (
+            <PlantCarousel title="Popular Plants" viewAllHref="/plants" plants={featured.slice(0, CAROUSEL_ITEM_LIMIT)} />
+          )}
+          {categories &&
+            categories.map((cat) => (
+              <PlantCarousel
+                key={cat.id}
+                title={cat.name}
+                viewAllHref={`/plants?category=${cat.slug}`}
+                plants={categoryPlants[cat.slug]}
+              />
+            ))}
+        </div>
+      </div>
+
       <PlantExplorer />
 
-      <section className="section">
+      <section className="section landing-desktop-only">
         <div className="container">
           <div className="section-head">
             <span className="eyebrow">What we offer</span>
@@ -78,7 +116,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="section section-alt">
+      <section className="section section-alt landing-desktop-only">
         <div className="container">
           <div className="section-head">
             <span className="eyebrow">Customer favourites</span>

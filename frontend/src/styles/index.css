@@ -129,8 +129,131 @@ button, input, textarea, select {
 }
 
 @media (max-width: 620px) {
-  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .grid { gap: 12px; }
   .section { padding: 40px 0; }
+
+  /* Two-up product cards need a lighter touch: smaller text/padding so the
+     card doesn't feel cramped, and the two action buttons stacked instead
+     of squeezed side by side (this is the same crowding problem fixed
+     earlier for the desktop 4-column explorer grid, showing up again at
+     roughly the same per-card width). */
+  .card-body {
+    padding: 12px;
+  }
+  .card-body h3 {
+    font-size: 0.92rem !important;
+  }
+  .card-body p {
+    font-size: 0.8rem !important;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+  }
+  .card-actions {
+    padding: 0 12px 12px;
+  }
+  .card-actions-row {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .card-actions-row .btn {
+    width: 100%;
+  }
+}
+
+/* ---------- Landing page mobile carousels ----------
+   Desktop keeps the existing "Shop by Category" tiles + "Featured Plants"
+   grid untouched; below 620px those are swapped for horizontal, swipeable
+   per-category carousels instead so the landing page doesn't turn into an
+   endless vertical list of plants. Pure CSS scroll-snap — no JS/library. */
+
+.landing-mobile-only {
+  display: none;
+}
+
+@media (max-width: 620px) {
+  .landing-desktop-only {
+    display: none;
+  }
+
+  .landing-mobile-only {
+    display: block;
+    padding: 28px 0 8px;
+  }
+
+  .plant-carousel {
+    margin-bottom: 24px;
+  }
+
+  .plant-carousel-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .plant-carousel-head h3 {
+    margin: 0;
+    font-size: 1.05rem;
+  }
+
+  .plant-carousel-viewall {
+    flex-shrink: 0;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--color-accent);
+    white-space: nowrap;
+    padding: 4px 0 4px 8px;
+  }
+
+  .plant-carousel-track {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+    /* Bleed to the screen edge like the rest of the mobile header/content,
+       instead of the .container's side padding trapping the peek effect. */
+    margin: 0 calc(-1 * clamp(12px, 2vw, 28px));
+    padding-inline: clamp(12px, 2vw, 28px);
+  }
+
+  .plant-carousel-track::-webkit-scrollbar {
+    display: none;
+  }
+
+  .plant-carousel-item {
+    flex: 0 0 auto;
+    width: calc(50% - 6px);
+    scroll-snap-align: start;
+  }
+
+  /* Extra-compact card just for the carousel — image less tall, no
+     description, tighter padding — per the "reduced height" spec. The full
+     catalog page (Plants.jsx) and the 2-column grid elsewhere are untouched. */
+  .plant-carousel-item .card img {
+    aspect-ratio: 1 / 1;
+  }
+  .plant-carousel-item .card-body {
+    padding: 10px;
+  }
+  .plant-carousel-item .card-body h3 {
+    font-size: 0.88rem !important;
+    margin: 6px 0 4px !important;
+  }
+  .plant-carousel-item .card-body p {
+    display: none;
+  }
+  .plant-carousel-item .price {
+    font-size: 0.92rem;
+  }
+  .plant-carousel-item .card-actions {
+    padding: 0 10px 10px;
+  }
 }
 
 /* ---------- Buttons ---------- */
@@ -343,11 +466,17 @@ select:focus-visible {
   display: block;
 }
 
+.nav-links-backdrop,
+.nav-links-close,
+.nav-link-icon {
+  display: none;
+}
+
 .nav-links {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(0.45rem, 0.85vw, 1.5rem);
+  gap: clamp(0.3rem, 0.6vw, 1.5rem);
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -359,7 +488,7 @@ select:focus-visible {
   font-weight: 600;
   color: var(--color-text);
   font-size: clamp(0.76rem, 0.72rem + 0.12vw, 0.95rem);
-  padding: 0.55rem 0.7rem;
+  padding: 0.55rem clamp(0.4rem, 0.9vw, 0.7rem);
   line-height: 1.2;
   white-space: nowrap;
   border-bottom: 2px solid transparent;
@@ -369,6 +498,23 @@ select:focus-visible {
 .nav-links a:not(.btn):hover {
   color: var(--color-accent);
   border-bottom-color: var(--color-accent);
+}
+
+/* Slightly tighter than the base .btn padding — .nav-links is a flex:1
+   fill-the-gap row competing with nav-right for space, and nav-right's
+   width varies a lot by auth state (login pill vs. cart+avatar+name+
+   logout), so this can't lean on viewport-width breakpoints alone the
+   way most of this file does. */
+.nav-links .btn {
+  padding: 10px 18px;
+  flex-shrink: 0;
+}
+
+/* Mobile-only compact link row (Home / Shop / Contact) — hidden on desktop,
+   where the full .nav-links row already covers everything. Enabled inside
+   the existing "collapse to hamburger" breakpoint below. */
+.nav-quicklinks {
+  display: none;
 }
 
 .nav-cta {
@@ -504,6 +650,14 @@ select:focus-visible {
   color: var(--color-accent);
 }
 
+/* Mobile-only dropdown (My Account / My Orders / Logout) — only ever
+   rendered in the DOM when open, and only ever opened by mobile-gated JS,
+   so no extra guarding is needed for desktop; positioning below is scoped
+   to the same breakpoint as everything else in this file. */
+.nav-account-dropdown {
+  display: none;
+}
+
 .nav-toggle {
   display: none;
   background: none;
@@ -609,48 +763,221 @@ select:focus-visible {
   }
 }
 
-/* Tablet portrait and phones: not enough room for the full link row, collapse to the hamburger menu. */
+/* Tablet portrait and phones: not enough room for the full link row, collapse to the hamburger menu.
+   This breakpoint also carries the mobile-only header rework: a compact
+   quick-links row, the search bar moved to its own full-width row below
+   (via position:absolute so the DOM/markup — and desktop — stay untouched),
+   and the account menu becoming a dropdown instead of a bare Logout link. */
 @media (max-width: 1023px) {
+  /* nowrap is deliberate: row 1 (logo/quicklinks/cart/account/hamburger)
+     must never spill onto a third line, in either auth state — it only
+     ever has two rows, with search on its own row via position:absolute
+     below (which doesn't participate in this flex flow either way). If
+     row 1's content is ever too wide, .nav-quicklinks (the only flexible
+     item here) shrinks first; everything else keeps its size. */
   .navbar .container {
-    height: 72px;
-    gap: 10px;
+    height: auto;
+    min-height: 60px;
+    gap: 6px;
+    flex-wrap: nowrap;
+    position: relative;
+    padding-bottom: 58px;
   }
   .brand-logo {
-    height: 52px;
+    height: 32px;
+  }
+  .nav-quicklinks {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .nav-quicklinks a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 6px;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.78rem;
+    color: var(--color-text);
+    white-space: nowrap;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+  .nav-quicklinks a.active {
+    color: var(--color-accent);
+    background: rgba(64, 145, 108, 0.1);
+  }
+  /* Dimmed backdrop behind the drawer — same pattern as .explorer-filters-backdrop. */
+  .nav-links-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(16, 40, 31, 0.45);
+    z-index: 90;
+    animation: authOverlayFadeIn 0.2s ease forwards;
+  }
+  .nav-links-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-end;
+    min-width: 44px;
+    min-height: 44px;
+    margin-bottom: 4px;
+    border: none;
+    background: none;
+    font-size: 1.6rem;
+    line-height: 1;
+    color: var(--color-text-muted);
+    cursor: pointer;
+  }
+  .nav-links-close:active {
+    transform: scale(0.92);
   }
   .nav-links {
     position: fixed;
-    inset: 72px 0 0 0;
+    inset: 0 0 0 auto;
+    width: min(320px, 82vw);
     background: var(--color-surface);
     flex-direction: column;
-    align-items: flex-start;
-    padding: 24px 20px;
-    gap: 18px;
+    align-items: stretch;
+    padding: 16px 20px 24px;
+    gap: 6px;
     transform: translateX(100%);
-    transition: transform 0.25s ease;
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
     overflow-y: auto;
+    z-index: 95;
+    box-shadow: var(--shadow-lg);
   }
   .nav-links a:not(.btn) {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     font-size: 0.95rem;
+    min-height: 48px;
+    border-bottom: none;
+    border-radius: var(--radius-sm);
+    padding-left: 10px;
+  }
+  .nav-links a:not(.btn).active,
+  .nav-links a:not(.btn):hover {
+    background: rgba(64, 145, 108, 0.1);
+    border-bottom: none;
+  }
+  .nav-link-icon {
+    display: inline-flex;
+    width: 22px;
+    font-size: 1.05rem;
+    flex-shrink: 0;
   }
   .nav-links .btn {
     padding: 12px 24px;
     font-size: 0.95rem;
+    margin-top: 12px;
   }
   .nav-links.open {
     transform: translateX(0);
   }
   .nav-toggle {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .nav-toggle:active {
+    transform: scale(0.94);
   }
   .nav-cta .btn-primary span.hide-mobile {
     display: none;
   }
-  .nav-actions {
-    gap: 12px;
+  .nav-right {
+    gap: 6px;
   }
-  .nav-search-bar {
-    width: 230px;
+  .nav-actions {
+    gap: 6px;
+  }
+  .nav-cart-link {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .nav-cart-link:active,
+  .nav-login-btn:active {
+    transform: scale(0.96);
+  }
+  .nav-account {
+    position: relative;
+  }
+  .nav-account-link {
+    min-height: 44px;
+  }
+  .nav-account-link:active {
+    transform: scale(0.97);
+  }
+  .nav-account-logout {
+    display: none;
+  }
+  /* Row 1 only has room for the avatar circle (matches the reference —
+     the name text isn't shown next to it on mobile at all, at any width
+     in this tier, not just the narrowest ones). */
+  .nav-account-name {
+    display: none;
+  }
+  /* position: fixed (anchored to the viewport, not to the narrow avatar box)
+     so the panel can't get pushed off the left edge on narrow phones the
+     way an absolutely-positioned-off-a-40px-wide-avatar panel would. */
+  .nav-account-dropdown {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 60px;
+    right: clamp(12px, 2vw, 28px);
+    width: 190px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    padding: 8px;
+    z-index: 96;
+    animation: authCardIn 0.2s ease forwards;
+  }
+  .nav-account-dropdown a,
+  .nav-account-dropdown button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    padding: 0 12px;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--color-text);
+    text-align: left;
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+  .nav-account-dropdown a:hover,
+  .nav-account-dropdown button:hover {
+    background: var(--color-bg);
+    color: var(--color-accent);
+  }
+  .nav-account-dropdown-logout {
+    margin-top: 6px;
+    padding-top: 14px !important;
+    border-top: 1px solid var(--color-border);
+    color: var(--color-danger) !important;
+  }
+  .nav-account-dropdown-logout:hover {
+    background: rgba(193, 68, 60, 0.08) !important;
+    color: var(--color-danger) !important;
   }
 }
 
@@ -700,6 +1027,18 @@ select:focus-visible {
 .nav-search {
   position: relative;
   flex-shrink: 0;
+}
+
+/* Placed right after the base rule above so it wins the cascade (same
+   specificity, later source order) — moves search onto its own full-width
+   row below the compact top row, without touching the DOM or desktop. */
+@media (max-width: 1023px) {
+  .nav-search {
+    position: absolute;
+    left: clamp(12px, 2vw, 28px);
+    right: clamp(12px, 2vw, 28px);
+    bottom: 8px;
+  }
 }
 
 .nav-search-bar {
@@ -798,6 +1137,15 @@ select:focus-visible {
   z-index: 120;
 }
 
+/* Placed after the base .nav-search-bar rule above (which unconditionally
+   sets width: 230px) so this wins the cascade at the same specificity —
+   the mobile-only block earlier in the file was losing to it otherwise. */
+@media (max-width: 1023px) {
+  .nav-search-bar {
+    width: 100%;
+  }
+}
+
 .nav-search-status {
   padding: 18px 14px;
   color: var(--color-text-muted);
@@ -868,38 +1216,20 @@ select:focus-visible {
   background: rgba(64, 145, 108, 0.16);
 }
 
-@media (max-width: 1100px) {
+/* This narrow sliver (hamburger not active yet, search still sits inline in
+   the top row) is the only range where the search bar still needs to
+   shrink — below 1023px it now lives on its own full-width row instead. */
+@media (min-width: 1024px) and (max-width: 1100px) {
   .nav-search-bar {
     width: 34vw;
     min-width: 110px;
     max-width: 220px;
   }
-
-  .nav-search-dropdown {
-    position: fixed;
-    top: 72px;
-    left: 12px;
-    right: 12px;
-    width: auto;
-    max-width: none;
-  }
 }
 
 @media (max-width: 480px) {
-  .nav-search-bar {
-    width: 26vw;
-    min-width: 76px;
-  }
-
   .nav-search-input {
     font-size: 0.82rem;
-  }
-}
-
-@media (max-width: 360px) {
-  .nav-search-bar {
-    width: 60px;
-    min-width: 0;
   }
 }
 
@@ -1995,7 +2325,12 @@ textarea.form-control {
   flex-shrink: 0;
 }
 
-.orders-row-thumb {
+/* img.orders-row-thumb (not just .orders-row-thumb) so this ties .card img
+   on specificity instead of losing to it — .card's own img rule sets
+   width:100% + aspect-ratio for full-size PlantCard photos, which was
+   stretching these 48px order-list thumbnails full-width since a plain
+   class selector loses to class+type. */
+img.orders-row-thumb {
   width: 48px;
   height: 48px;
   border-radius: var(--radius-sm);
@@ -2003,6 +2338,7 @@ textarea.form-control {
   border: 2px solid var(--color-surface);
   box-shadow: var(--shadow);
   background: var(--color-bg);
+  flex-shrink: 0;
 }
 
 .orders-row-thumb:not(:first-child) {
