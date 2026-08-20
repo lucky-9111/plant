@@ -1347,12 +1347,37 @@ select:focus-visible {
 
 /* This narrow sliver (hamburger not active yet, search still sits inline in
    the top row) is the only range where the search bar still needs to
-   shrink — below 1023px it now lives on its own full-width row instead. */
-@media (min-width: 1024px) and (max-width: 1100px) {
+   shrink — below 1023px it now lives on its own full-width row instead.
+   Measured against the live nav-links row: shrinking the bar's width alone
+   still collides with "Get in Touch" all the way down to ~90px wide, which
+   is too cramped to show any placeholder text. Instead it collapses to an
+   icon-only button (matching the ~40px size of the cart/login icons next to
+   it) and expands into a floating overlay on focus, so it never competes
+   with the rest of the row for space either collapsed or expanded.
+   flex-direction: row-reverse keeps the icon pinned to the bar's right edge
+   (which never moves — the collapsed 42px box and the expanded absolute
+   box share the same right edge) instead of its left edge, which would
+   otherwise shift ~190px left the instant focus lands and make the icon
+   dodge out from under the cursor mid-click. */
+@media (min-width: 1024px) and (max-width: 1180px) {
+  .nav-search {
+    width: 42px;
+  }
   .nav-search-bar {
-    width: 34vw;
-    min-width: 110px;
-    max-width: 220px;
+    flex-direction: row-reverse;
+    width: 42px;
+    padding-left: 0;
+    overflow: hidden;
+  }
+  .nav-search:focus-within .nav-search-bar {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
+    width: 230px;
+    padding-left: 8px;
+    overflow: visible;
+    z-index: 10;
   }
 }
 
