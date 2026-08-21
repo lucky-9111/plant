@@ -6,6 +6,18 @@ import { Loading } from "../../components/Loading";
 const columns = [
   { key: "name", label: "Name" },
   {
+    key: "variants",
+    label: "Type",
+    render: (item) =>
+      item.variants && item.variants.length > 0 ? (
+        <span className="badge badge-accent">
+          Tray ({item.variants.length} size{item.variants.length > 1 ? "s" : ""})
+        </span>
+      ) : (
+        <span className="badge badge-muted">Normal</span>
+      ),
+  },
+  {
     key: "image_url",
     label: "Image",
     render: (item) => (item.image_url ? <img className="thumb" src={item.image_url} alt="" /> : "-"),
