@@ -127,7 +127,10 @@ export default function AdminOrderDetail() {
                     <div className="admin-order-item-thumb" />
                   )}
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600 }}>{item.plant_name}</div>
+                    <div style={{ fontWeight: 600 }}>
+                      {item.plant_name}
+                      {item.tray_size ? ` (${item.tray_size} Plants Tray)` : ""}
+                    </div>
                     <div style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
                       Qty {item.quantity} &times; &#8377;{item.unit_price}
                     </div>

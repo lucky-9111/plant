@@ -1,6 +1,7 @@
 import re
 import secrets
 from datetime import datetime, timedelta
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session, joinedload
@@ -18,6 +19,7 @@ from app.models import (
     OrderItem,
     OrderStatusHistory,
     Plant,
+    PlantVariant,
     WishlistItem,
 )
 from app.notifications import notify_order_cancelled, notify_order_status, send_email
@@ -50,6 +52,24 @@ MOBILE_PATTERN = re.compile(r"^[6-9]\d{9}$")
 PINCODE_PATTERN = re.compile(r"^\d{6}$")
 ADDRESS_TYPES = {"Home", "Other"}
 PAYMENT_METHODS = {"COD", "Razorpay"}
+
+
+def _resolve_variant(db: Session, plant: Plant, variant_id: Optional[int]) -> Optional[PlantVariant]:
+    has_variants = db.query(PlantVariant.id).filter(PlantVariant.plant_id == plant.id).first() is not None
+    if not has_variants:
+        if variant_id is not None:
+            raise HTTPException(status_code=400, detail=f"{plant.name} does not have tray options")
+        return None
+    if variant_id is None:
+        raise HTTPException(status_code=400, detail=f"Please select a tray size for {plant.name}")
+    variant = (
+        db.query(PlantVariant)
+        .filter(PlantVariant.id == variant_id, PlantVariant.plant_id == plant.id)
+        .first()
+    )
+    if not variant:
+        raise HTTPException(status_code=400, detail="Invalid tray size selected")
+    return variant
 
 
 def get_or_404_order(db: Session, order_id: int, customer_id: int) -> Order:
@@ -169,16 +189,27 @@ def add_to_cart(
         raise HTTPException(status_code=404, detail="Plant not found")
     if payload.quantity < 1:
         raise HTTPException(status_code=400, detail="Quantity must be at least 1")
+    variant = _resolve_variant(db, plant, payload.variant_id)
+    variant_id = variant.id if variant else None
 
     item = (
         db.query(CartItem)
-        .filter(CartItem.customer_id == customer_id, CartItem.plant_id == payload.plant_id)
+        .filter(
+            CartItem.customer_id == customer_id,
+            CartItem.plant_id == payload.plant_id,
+            CartItem.variant_id == variant_id,
+        )
         .first()
     )
     if item:
         item.quantity += payload.quantity
     else:
-        item = CartItem(customer_id=customer_id, plant_id=payload.plant_id, quantity=payload.quantity)
+        item = CartItem(
+            customer_id=customer_id,
+            plant_id=payload.plant_id,
+            variant_id=variant_id,
+            quantity=payload.quantity,
+        )
         db.add(item)
     db.commit()
     db.refresh(item)
@@ -457,13 +488,15 @@ def checkout(
         )
         if not plant:
             raise HTTPException(status_code=404, detail="Plant not found")
-        if plant.stock_quantity < payload.buy_now_quantity:
+        variant = _resolve_variant(db, plant, payload.buy_now_variant_id)
+        available = variant.stock_quantity if variant else plant.stock_quantity
+        if available < payload.buy_now_quantity:
             raise HTTPException(status_code=400, detail=f"Insufficient stock for {plant.name}")
-        order_lines = [(plant, payload.buy_now_quantity)]
+        order_lines = [(plant, variant, payload.buy_now_quantity)]
     else:
         cart_items = (
             db.query(CartItem)
-            .options(joinedload(CartItem.plant))
+            .options(joinedload(CartItem.plant), joinedload(CartItem.variant))
             .filter(CartItem.customer_id == customer_id)
             .all()
         )
@@ -474,12 +507,18 @@ def checkout(
             plant = cart_item.plant
             if not plant or not plant.is_active:
                 raise HTTPException(status_code=400, detail=f"{plant.name if plant else 'A plant'} is no longer available")
-            if plant.stock_quantity < cart_item.quantity:
+            if cart_item.variant_id and not cart_item.variant:
+                raise HTTPException(status_code=400, detail=f"A tray option for {plant.name} is no longer available")
+            available = cart_item.variant.stock_quantity if cart_item.variant else plant.stock_quantity
+            if available < cart_item.quantity:
                 raise HTTPException(status_code=400, detail=f"Insufficient stock for {plant.name}")
 
-        order_lines = [(cart_item.plant, cart_item.quantity) for cart_item in cart_items]
+        order_lines = [(cart_item.plant, cart_item.variant, cart_item.quantity) for cart_item in cart_items]
 
-    subtotal = sum(plant.effective_price * quantity for plant, quantity in order_lines)
+    subtotal = sum(
+        (variant.price if variant else plant.effective_price) * quantity
+        for plant, variant, quantity in order_lines
+    )
 
     order = Order(
         customer_id=customer_id,
@@ -500,19 +539,25 @@ def checkout(
     db.add(order)
     db.flush()
 
-    for plant, quantity in order_lines:
+    for plant, variant, quantity in order_lines:
+        unit_price = variant.price if variant else plant.effective_price
         db.add(
             OrderItem(
                 order_id=order.id,
                 plant_id=plant.id,
                 plant_name=plant.name,
                 plant_image_url=plant.image_url,
-                unit_price=plant.effective_price,
+                variant_id=variant.id if variant else None,
+                tray_size=variant.tray_size if variant else None,
+                unit_price=unit_price,
                 quantity=quantity,
-                line_total=plant.effective_price * quantity,
+                line_total=unit_price * quantity,
             )
         )
-        plant.stock_quantity -= quantity
+        if variant:
+            variant.stock_quantity -= quantity
+        else:
+            plant.stock_quantity -= quantity
 
     if payload.payment_method == "Razorpay":
         try:
@@ -638,7 +683,11 @@ def cancel_order(
         )
 
     for item in order.items:
-        if item.plant_id:
+        if item.variant_id:
+            variant = db.query(PlantVariant).filter(PlantVariant.id == item.variant_id).first()
+            if variant:
+                variant.stock_quantity += item.quantity
+        elif item.plant_id:
             plant = db.query(Plant).filter(Plant.id == item.plant_id).first()
             if plant:
                 plant.stock_quantity += item.quantity

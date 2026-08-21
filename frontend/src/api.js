@@ -1,5 +1,22 @@
 const BASE = "/api";
 
+// FastAPI's own request-validation errors (422) send `detail` as an array of
+// { loc, msg } objects rather than a plain string like the app's custom
+// HTTPException responses do -- without this, new Error(detail) would
+// stringify that array into the unreadable "[object Object]".
+function formatDetail(detail, fallback) {
+  if (typeof detail === "string" && detail) return detail;
+  if (Array.isArray(detail) && detail.length > 0) {
+    const messages = detail.map((err) => {
+      const field = Array.isArray(err.loc) ? err.loc[err.loc.length - 1] : null;
+      const msg = err.msg || "Invalid value";
+      return typeof field === "string" ? `${field}: ${msg}` : msg;
+    });
+    return messages.join("; ");
+  }
+  return fallback;
+}
+
 async function request(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, {
     credentials: "include",
@@ -11,7 +28,7 @@ async function request(path, options = {}) {
     let detail = res.statusText;
     try {
       const data = await res.json();
-      detail = data.detail || detail;
+      detail = formatDetail(data.detail, detail);
     } catch {
       // ignore non-JSON error bodies
     }
@@ -31,7 +48,7 @@ async function requestPaged(path) {
     let detail = res.statusText;
     try {
       const data = await res.json();
-      detail = data.detail || detail;
+      detail = formatDetail(data.detail, detail);
     } catch {
       // ignore non-JSON error bodies
     }

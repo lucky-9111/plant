@@ -63,6 +63,7 @@ class Plant(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
     category = relationship("Category", back_populates="plants")
+    variants = relationship("PlantVariant", back_populates="plant", cascade="all, delete-orphan")
 
     @property
     def feature_list(self):
@@ -71,6 +72,32 @@ class Plant(Base):
     @property
     def effective_price(self):
         return self.discount_price if self.discount_price else self.price
+
+
+class PlantVariant(Base):
+    """A tray-size option for seedlings sold in bulk (e.g. 125 or 150 plants per tray)."""
+
+    __tablename__ = "plant_variants"
+    __table_args__ = (
+        UniqueConstraint("plant_id", "tray_size", name="uq_variant_plant_traysize"),
+        # Admin edits replace all of a plant's variants via delete-then-recreate; without
+        # true AUTOINCREMENT, SQLite can reuse a just-deleted id for the new row, which
+        # would let a stale variant_id sitting in someone's cart silently resolve to a
+        # different (wrong-price) tray option instead of failing the "no longer available" check.
+        {"sqlite_autoincrement": True},
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    plant_id = Column(Integer, ForeignKey("plants.id"), nullable=False, index=True)
+    tray_size = Column(Integer, nullable=False)
+    stock_quantity = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    plant = relationship("Plant", back_populates="variants")
+
+    @property
+    def price(self):
+        return round(self.plant.price * self.tray_size, 2) if self.plant else 0
 
 
 class Service(Base):
@@ -218,15 +245,25 @@ class Customer(Base):
 
 class CartItem(Base):
     __tablename__ = "cart_items"
-    __table_args__ = (UniqueConstraint("customer_id", "plant_id", name="uq_cart_customer_plant"),)
+    __table_args__ = (
+        UniqueConstraint("customer_id", "plant_id", "variant_id", name="uq_cart_customer_plant_variant"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False, index=True)
     plant_id = Column(Integer, ForeignKey("plants.id"), nullable=False, index=True)
+    variant_id = Column(Integer, ForeignKey("plant_variants.id"), nullable=True)
     quantity = Column(Integer, default=1)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     plant = relationship("Plant")
+    variant = relationship("PlantVariant")
+
+    @property
+    def unit_price(self):
+        if self.variant_id:
+            return self.variant.price if self.variant else (self.plant.effective_price if self.plant else 0)
+        return self.plant.effective_price if self.plant else 0
 
 
 class WishlistItem(Base):
@@ -312,6 +349,8 @@ class OrderItem(Base):
     plant_id = Column(Integer, ForeignKey("plants.id"), nullable=True)
     plant_name = Column(String(150), default="")
     plant_image_url = Column(String(300), default="")
+    variant_id = Column(Integer, nullable=True)
+    tray_size = Column(Integer, nullable=True)
     unit_price = Column(Float, default=0)
     quantity = Column(Integer, default=1)
     line_total = Column(Float, default=0)

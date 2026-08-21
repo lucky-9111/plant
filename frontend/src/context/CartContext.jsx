@@ -42,13 +42,13 @@ export function CartProvider({ children }) {
   }, [session?.type, session?.id]);
 
   const addToCart = useCallback(
-    async (plant, quantity = 1) => {
+    async (plant, quantity = 1, variantId = null) => {
       if (session === undefined) return;
 
       if (session === null) {
         sessionStorage.setItem(
           PENDING_KEY,
-          JSON.stringify({ type: "add", plantId: plant.id, quantity })
+          JSON.stringify({ type: "add", plantId: plant.id, quantity, variantId })
         );
         navigate("/login", {
           state: { from: location.pathname + location.search, backgroundLocation: location },
@@ -62,7 +62,7 @@ export function CartProvider({ children }) {
       }
 
       try {
-        await api.post("/customer/cart", { plant_id: plant.id, quantity });
+        await api.post("/customer/cart", { plant_id: plant.id, variant_id: variantId, quantity });
         showToast("success", `${plant.name} added to cart`);
         refreshCart();
       } catch (err) {
@@ -73,13 +73,13 @@ export function CartProvider({ children }) {
   );
 
   const buyNow = useCallback(
-    (plant, quantity = 1) => {
+    (plant, quantity = 1, variantId = null) => {
       if (session === undefined) return;
 
       if (session === null) {
         sessionStorage.setItem(
           PENDING_KEY,
-          JSON.stringify({ type: "buyNow", plantId: plant.id, quantity, slug: plant.slug })
+          JSON.stringify({ type: "buyNow", plantId: plant.id, quantity, slug: plant.slug, variantId })
         );
         navigate("/login", {
           state: { from: location.pathname + location.search, backgroundLocation: location },
@@ -93,7 +93,7 @@ export function CartProvider({ children }) {
       }
 
       navigate("/checkout", {
-        state: { buyNow: { plantId: plant.id, quantity, slug: plant.slug } },
+        state: { buyNow: { plantId: plant.id, quantity, slug: plant.slug, variantId } },
       });
     },
     [session, navigate, location, showToast]
@@ -117,12 +117,23 @@ export function CartProvider({ children }) {
     if (pending.type === "buyNow") {
       return {
         navigateTo: "/checkout",
-        state: { buyNow: { plantId: pending.plantId, quantity: pending.quantity || 1, slug: pending.slug } },
+        state: {
+          buyNow: {
+            plantId: pending.plantId,
+            quantity: pending.quantity || 1,
+            slug: pending.slug,
+            variantId: pending.variantId ?? null,
+          },
+        },
       };
     }
 
     try {
-      await api.post("/customer/cart", { plant_id: pending.plantId, quantity: pending.quantity || 1 });
+      await api.post("/customer/cart", {
+        plant_id: pending.plantId,
+        variant_id: pending.variantId ?? null,
+        quantity: pending.quantity || 1,
+      });
       showToast("success", "Added to cart");
       refreshCart();
     } catch (err) {

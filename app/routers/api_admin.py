@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from slugify import slugify
 from sqlalchemy import func, or_
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.auth import hash_password, verify_password
 from app.database import BASE_DIR, get_db
@@ -28,6 +28,7 @@ from app.models import (
     OrderStatusHistory,
     PAYMENT_STATUSES,
     Plant,
+    PlantVariant,
     PricingPlan,
     Service,
     SiteSetting,
@@ -60,6 +61,7 @@ from app.schemas import (
     OrderSummaryOut,
     PlantIn,
     PlantOut,
+    PlantVariantIn,
     PricingPlanIn,
     PricingPlanOut,
     ServiceIn,
@@ -98,6 +100,24 @@ def get_or_404(db: Session, model, item_id: int):
     if not item:
         raise HTTPException(status_code=404, detail=f"{model.__name__} not found")
     return item
+
+
+def _validate_variants(variants: list[PlantVariantIn], price: float) -> None:
+    if not variants:
+        return
+    if price <= 0:
+        raise HTTPException(
+            status_code=400, detail="Price per plant must be greater than 0 for tray products"
+        )
+    seen_sizes = set()
+    for v in variants:
+        if v.tray_size <= 0:
+            raise HTTPException(status_code=400, detail="Tray size must be greater than 0")
+        if v.stock_quantity < 0:
+            raise HTTPException(status_code=400, detail="Tray stock cannot be negative")
+        if v.tray_size in seen_sizes:
+            raise HTTPException(status_code=400, detail=f"Duplicate tray size: {v.tray_size}")
+        seen_sizes.add(v.tray_size)
 
 
 # ---------- Auth ----------
@@ -341,13 +361,19 @@ def delete_category(
 
 @router.get("/plants", response_model=list[PlantOut])
 def list_plants(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
-    return db.query(Plant).order_by(Plant.category_id).all()
+    return (
+        db.query(Plant)
+        .options(selectinload(Plant.variants))
+        .order_by(Plant.category_id)
+        .all()
+    )
 
 
 @router.post("/plants", response_model=PlantOut, status_code=201)
 def create_plant(
     payload: PlantIn, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
 ):
+    _validate_variants(payload.variants or [], payload.price)
     item = Plant(
         name=payload.name.strip(),
         slug=unique_slug(db, Plant, payload.name),
@@ -364,6 +390,13 @@ def create_plant(
         is_active=payload.is_active,
     )
     db.add(item)
+    db.flush()
+
+    if payload.variants:
+        for v in payload.variants:
+            db.add(PlantVariant(plant_id=item.id, tray_size=v.tray_size, stock_quantity=v.stock_quantity))
+        item.stock_quantity = sum(v.stock_quantity for v in payload.variants)
+
     db.commit()
     db.refresh(item)
     return item
@@ -377,6 +410,7 @@ def update_plant(
     db: Session = Depends(get_db),
 ):
     item = get_or_404(db, Plant, item_id)
+    _validate_variants(payload.variants or [], payload.price)
     if item.name != payload.name.strip():
         item.slug = unique_slug(db, Plant, payload.name, exclude_id=item.id)
     item.name = payload.name.strip()
@@ -391,6 +425,14 @@ def update_plant(
     item.features = payload.features.strip()
     item.is_featured = payload.is_featured
     item.is_active = payload.is_active
+
+    if payload.variants is not None:
+        db.query(PlantVariant).filter(PlantVariant.plant_id == item.id).delete()
+        for v in payload.variants:
+            db.add(PlantVariant(plant_id=item.id, tray_size=v.tray_size, stock_quantity=v.stock_quantity))
+        if payload.variants:
+            item.stock_quantity = sum(v.stock_quantity for v in payload.variants)
+
     db.commit()
     db.refresh(item)
     return item
@@ -909,7 +951,11 @@ def admin_cancel_order(
         )
 
     for item in order.items:
-        if item.plant_id:
+        if item.variant_id:
+            variant = db.query(PlantVariant).filter(PlantVariant.id == item.variant_id).first()
+            if variant:
+                variant.stock_quantity += item.quantity
+        elif item.plant_id:
             plant = db.query(Plant).filter(Plant.id == item.plant_id).first()
             if plant:
                 plant.stock_quantity += item.quantity

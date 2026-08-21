@@ -8,9 +8,12 @@ import { useDocumentTitle } from "../hooks/useDocumentTitle";
 function CartRow({ item, onUpdateQuantity, onRemove }) {
   const [busy, setBusy] = useState(false);
   const plant = item.plant;
-  const price = plant?.effective_price ?? 0;
+  const variant = item.variant;
+  const danglingVariant = Boolean(item.variant_id) && !variant;
+  const price = item.unit_price ?? 0;
   const lineTotal = price * item.quantity;
-  const atMaxStock = plant ? item.quantity >= plant.stock_quantity : false;
+  const availableStock = variant ? variant.stock_quantity : plant?.stock_quantity;
+  const atMaxStock = availableStock != null ? item.quantity >= availableStock : false;
 
   async function changeQuantity(next) {
     if (next < 1 || busy) return;
@@ -42,10 +45,16 @@ function CartRow({ item, onUpdateQuantity, onRemove }) {
         <Link to={plant ? `/plants/${plant.slug}` : "#"} className="cart-row-name">
           {plant?.name || "Unavailable product"}
         </Link>
+        {variant && <div className="cart-row-variant">{variant.tray_size} Plants Tray</div>}
         <div className="cart-row-price">
           &#8377;{price} &times; {item.quantity} = &#8377;{lineTotal}
         </div>
-        {plant && plant.stock_quantity <= 0 && (
+        {danglingVariant && (
+          <span className="badge badge-gold" style={{ marginTop: 6 }}>
+            This tray option is no longer available &mdash; please remove
+          </span>
+        )}
+        {!danglingVariant && availableStock != null && availableStock <= 0 && (
           <span className="badge badge-gold" style={{ marginTop: 6 }}>
             Out of Stock
           </span>
@@ -107,7 +116,7 @@ export default function Cart() {
   if (session.type !== "customer") return <Navigate to="/" replace />;
 
   const itemCount = items.reduce((sum, it) => sum + it.quantity, 0);
-  const subtotal = items.reduce((sum, it) => sum + (it.plant?.effective_price ?? 0) * it.quantity, 0);
+  const subtotal = items.reduce((sum, it) => sum + (it.unit_price ?? 0) * it.quantity, 0);
 
   return (
     <>

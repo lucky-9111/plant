@@ -2,7 +2,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import or_
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.auth import verify_password
 from app.database import get_db
@@ -71,7 +71,11 @@ def list_plants(
     limit: Optional[int] = None,
     db: Session = Depends(get_db),
 ):
-    query = db.query(Plant).options(joinedload(Plant.category)).filter(Plant.is_active.is_(True))
+    query = (
+        db.query(Plant)
+        .options(joinedload(Plant.category), selectinload(Plant.variants))
+        .filter(Plant.is_active.is_(True))
+    )
 
     if category:
         slugs = [slug.strip() for slug in category.split(",") if slug.strip()]
@@ -117,7 +121,7 @@ def list_plants(
 def get_plant(slug: str, db: Session = Depends(get_db)):
     plant = (
         db.query(Plant)
-        .options(joinedload(Plant.category))
+        .options(joinedload(Plant.category), selectinload(Plant.variants))
         .filter(Plant.slug == slug)
         .first()
     )

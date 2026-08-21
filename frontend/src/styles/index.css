@@ -1683,6 +1683,48 @@ textarea.form-control {
   color: #fff;
 }
 
+/* ---------- Tray selector (PlantDetail, Seedlings & Trays) ---------- */
+/* Scoped to .tray-selector / .tray-pill so it doesn't affect .pill usage
+   elsewhere (category filters). */
+
+.tray-selector-label {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--color-primary-dark);
+  margin-bottom: 8px;
+}
+
+.tray-selector-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.tray-pill-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tray-selector-total {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+
+.tray-selector-hint {
+  font-family: inherit;
+  font-weight: 400;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
 .page-hero {
   background: var(--color-primary);
   color: #fff;
@@ -2249,6 +2291,18 @@ textarea.form-control {
 .cart-row-price {
   color: var(--color-text-muted);
   font-size: 0.88rem;
+}
+
+.cart-row-variant {
+  display: inline-block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-primary-dark);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  margin-bottom: 4px;
 }
 
 .cart-row-qty {

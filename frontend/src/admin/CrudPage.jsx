@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { Loading, Empty } from "../components/Loading";
+import VariantsField from "./VariantsField";
 
 const emptyValue = (field) => {
   if (field.type === "checkbox") return field.default ?? false;
@@ -111,6 +112,11 @@ export default function CrudPage({ title, resource, fields, columns, idKey = "id
                     />
                     <span>{field.checkboxLabel || "Yes"}</span>
                   </div>
+                ) : field.type === "variants" ? (
+                  <VariantsField
+                    value={form[field.name]}
+                    onChange={(next) => updateField(field.name, next)}
+                  />
                 ) : field.type === "select" ? (
                   <select
                     id={field.name}

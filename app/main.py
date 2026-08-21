@@ -58,6 +58,40 @@ with engine.connect() as conn:
         conn.execute(text("ALTER TABLE orders ADD COLUMN razorpay_signature VARCHAR(255)"))
         conn.commit()
 
+    # Seedlings & Trays: cart_items needs a nullable variant_id, and its unique
+    # constraint must widen to (customer_id, plant_id, variant_id) so a customer
+    # can hold multiple tray sizes of the same seedling as separate cart lines.
+    # SQLite bakes UNIQUE(...) into an unnamed autoindex, so it can't be dropped
+    # by name -- rebuild the table instead (standard SQLite migration pattern).
+    cart_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(cart_items)"))}
+    if "variant_id" not in cart_columns:
+        conn.execute(text("""
+            CREATE TABLE cart_items_new (
+                id INTEGER NOT NULL PRIMARY KEY,
+                customer_id INTEGER NOT NULL,
+                plant_id INTEGER NOT NULL,
+                variant_id INTEGER,
+                quantity INTEGER,
+                created_at DATETIME,
+                UNIQUE (customer_id, plant_id, variant_id)
+            )
+        """))
+        conn.execute(text("""
+            INSERT INTO cart_items_new (id, customer_id, plant_id, variant_id, quantity, created_at)
+            SELECT id, customer_id, plant_id, NULL, quantity, created_at FROM cart_items
+        """))
+        conn.execute(text("DROP TABLE cart_items"))
+        conn.execute(text("ALTER TABLE cart_items_new RENAME TO cart_items"))
+        conn.commit()
+
+    order_item_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(order_items)"))}
+    if "variant_id" not in order_item_columns:
+        conn.execute(text("ALTER TABLE order_items ADD COLUMN variant_id INTEGER"))
+        conn.commit()
+    if "tray_size" not in order_item_columns:
+        conn.execute(text("ALTER TABLE order_items ADD COLUMN tray_size INTEGER"))
+        conn.commit()
+
 app = FastAPI(title="Aaiji Nursery")
 
 

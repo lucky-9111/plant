@@ -122,7 +122,9 @@ export default function OrderDetail() {
                   {order.items.map((item) => (
                     <div key={item.id} className="cart-summary-row">
                       <span>
-                        {item.plant_name} &times; {item.quantity} (&#8377;{item.unit_price} each)
+                        {item.plant_name}
+                        {item.tray_size ? ` (${item.tray_size} Plants Tray)` : ""} &times; {item.quantity} (&#8377;
+                        {item.unit_price} each)
                       </span>
                       <span>&#8377;{item.line_total}</span>
                     </div>

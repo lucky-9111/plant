@@ -21,6 +21,19 @@ class CategoryIn(BaseModel):
     display_order: int = 0
 
 
+class PlantVariantOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    tray_size: int
+    stock_quantity: int
+    price: float
+
+
+class PlantVariantIn(BaseModel):
+    tray_size: int
+    stock_quantity: int = 0
+
+
 class PlantOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -39,6 +52,7 @@ class PlantOut(BaseModel):
     is_featured: bool
     is_active: bool
     category: Optional[CategoryOut] = None
+    variants: List[PlantVariantOut] = []
 
 
 class PlantIn(BaseModel):
@@ -54,6 +68,7 @@ class PlantIn(BaseModel):
     features: str = ""
     is_featured: bool = False
     is_active: bool = True
+    variants: Optional[List[PlantVariantIn]] = None
 
 
 class ServiceOut(BaseModel):
@@ -302,12 +317,16 @@ class CartItemOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     plant_id: int
+    variant_id: Optional[int] = None
     quantity: int
+    unit_price: float
     plant: Optional[CartPlantOut] = None
+    variant: Optional[PlantVariantOut] = None
 
 
 class CartAddIn(BaseModel):
     plant_id: int
+    variant_id: Optional[int] = None
     quantity: int = 1
 
 
@@ -368,6 +387,7 @@ class CheckoutIn(BaseModel):
     delivery_pincode: str
     payment_method: str = "COD"
     buy_now_plant_id: Optional[int] = None
+    buy_now_variant_id: Optional[int] = None
     buy_now_quantity: int = 1
 
 
@@ -378,6 +398,8 @@ class OrderItemOut(BaseModel):
     plant_name: str
     plant_image_url: str
     plant_slug: Optional[str] = None
+    variant_id: Optional[int] = None
+    tray_size: Optional[int] = None
     unit_price: float
     quantity: int
     line_total: float

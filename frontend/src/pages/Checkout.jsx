@@ -62,7 +62,8 @@ function OrderConfirmation({ order }) {
               {order.items.map((item) => (
                 <div key={item.id} className="cart-summary-row">
                   <span>
-                    {item.plant_name} &times; {item.quantity}
+                    {item.plant_name}
+                    {item.tray_size ? ` (${item.tray_size} Plants Tray)` : ""} &times; {item.quantity}
                   </span>
                   <span>&#8377;{item.line_total}</span>
                 </div>
@@ -181,19 +182,38 @@ export default function Checkout() {
   if (session.type !== "customer") return <Navigate to="/" replace />;
 
   const isBuyNow = Boolean(buyNowRequest);
+  const buyNowVariant =
+    isBuyNow && buyNowPlant
+      ? (buyNowPlant.variants || []).find((v) => v.id === buyNowRequest.variantId) || null
+      : null;
+  const buyNowNeedsVariant =
+    isBuyNow && buyNowPlant && (buyNowPlant.variants || []).length > 0 && !buyNowVariant;
+
   const lines = isBuyNow
     ? buyNowPlant
-      ? [{ plant: buyNowPlant, quantity: buyNowRequest.quantity }]
+      ? [{ plant: buyNowPlant, variant: buyNowVariant, quantity: buyNowRequest.quantity }]
       : []
-    : cartItems.map((item) => ({ plant: item.plant, quantity: item.quantity }));
+    : cartItems.map((item) => ({
+        plant: item.plant,
+        variant: item.variant,
+        quantity: item.quantity,
+        unitPrice: item.unit_price,
+      }));
+
+  function lineUnitPrice(line) {
+    if (line.unitPrice != null) return line.unitPrice;
+    return line.variant ? line.variant.price : (line.plant?.effective_price ?? 0);
+  }
 
   const itemCount = lines.reduce((sum, l) => sum + l.quantity, 0);
-  const subtotal = lines.reduce((sum, l) => sum + (l.plant?.effective_price ?? 0) * l.quantity, 0);
+  const subtotal = lines.reduce((sum, l) => sum + lineUnitPrice(l) * l.quantity, 0);
 
+  const buyNowAvailableStock = buyNowVariant ? buyNowVariant.stock_quantity : buyNowPlant?.stock_quantity;
   const buyNowUnavailable =
     isBuyNow &&
     buyNowPlant &&
-    (buyNowPlant.stock_quantity <= 0 || buyNowPlant.stock_quantity < buyNowRequest.quantity);
+    !buyNowNeedsVariant &&
+    (buyNowAvailableStock <= 0 || buyNowAvailableStock < buyNowRequest.quantity);
 
   function update(field, value) {
     setSelectedAddressId(null);
@@ -285,6 +305,7 @@ export default function Checkout() {
       const payload = { ...form, delivery_mobile: mobile, payment_method: paymentMethod };
       if (isBuyNow) {
         payload.buy_now_plant_id = buyNowRequest.plantId;
+        payload.buy_now_variant_id = buyNowRequest.variantId ?? null;
         payload.buy_now_quantity = buyNowRequest.quantity;
       }
       const order = await api.post("/customer/checkout", payload);
@@ -450,7 +471,14 @@ export default function Checkout() {
 
               {buyNowUnavailable && (
                 <div className="alert alert-error">
-                  Only {buyNowPlant.stock_quantity} of {buyNowPlant.name} left in stock.
+                  Only {buyNowAvailableStock} of {buyNowPlant.name}
+                  {buyNowVariant ? ` (${buyNowVariant.tray_size} Plants Tray)` : ""} left in stock.
+                </div>
+              )}
+
+              {buyNowNeedsVariant && (
+                <div className="alert alert-error">
+                  Please go back and select a tray size for {buyNowPlant.name}.
                 </div>
               )}
 
@@ -569,7 +597,7 @@ export default function Checkout() {
 
                 <button
                   className="btn btn-primary btn-block"
-                  disabled={submitting || buyNowUnavailable || lines.length === 0}
+                  disabled={submitting || buyNowUnavailable || buyNowNeedsVariant || lines.length === 0}
                 >
                   {submitting
                     ? paymentMethod === "Razorpay"
@@ -587,11 +615,12 @@ export default function Checkout() {
             <div className="card-body">
               <h3 style={{ marginBottom: 16 }}>Order Summary</h3>
               {lines.map((line, idx) => (
-                <div className="cart-summary-row" key={line.plant?.id ?? idx}>
+                <div className="cart-summary-row" key={line.variant?.id ?? line.plant?.id ?? idx}>
                   <span>
-                    {line.plant?.name} &times; {line.quantity}
+                    {line.plant?.name}
+                    {line.variant ? ` (${line.variant.tray_size} Plants Tray)` : ""} &times; {line.quantity}
                   </span>
-                  <span>&#8377;{(line.plant?.effective_price ?? 0) * line.quantity}</span>
+                  <span>&#8377;{lineUnitPrice(line) * line.quantity}</span>
                 </div>
               ))}
               <div className="cart-summary-row">

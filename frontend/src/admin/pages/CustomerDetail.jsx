@@ -97,7 +97,8 @@ export default function CustomerDetail() {
                           {o.items.map((item) => (
                             <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <span>
-                                {item.plant_name} &times; {item.quantity}
+                                {item.plant_name}
+                                {item.tray_size ? ` (${item.tray_size} Plants Tray)` : ""} &times; {item.quantity}
                               </span>
                               <button
                                 type="button"
