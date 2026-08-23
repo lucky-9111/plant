@@ -1,6 +1,8 @@
 """Shared catalog placeholder data, used by seed.py and by the startup
 auto-seed in app/main.py (which refills catalog tables when they're empty -
 Render's free tier has no persistent disk, so SQLite resets on every deploy)."""
+import os
+
 from slugify import slugify
 
 from app.auth import hash_password
@@ -248,10 +250,12 @@ def seed_if_empty(SessionLocal):
         if db.query(Category).count() == 0:
             populate_catalog(db)
         if db.query(AdminUser).count() == 0:
+            admin_username = os.environ.get("DEFAULT_ADMIN_USERNAME", "admin")
+            admin_password = os.environ.get("DEFAULT_ADMIN_PASSWORD", "aaiji@admin123")
             db.add(
                 AdminUser(
-                    username="admin",
-                    hashed_password=hash_password("aaiji@admin123"),
+                    username=admin_username,
+                    hashed_password=hash_password(admin_password),
                     role="developer",
                 )
             )
