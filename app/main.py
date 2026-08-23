@@ -133,7 +133,7 @@ if FRONTEND_DIST.exists():
 
     @app.get("/{full_path:path}")
     def serve_react_app(full_path: str):
-        candidate = FRONTEND_DIST / full_path
-        if full_path and candidate.is_file():
+        candidate = (FRONTEND_DIST / full_path).resolve()
+        if full_path and candidate.is_file() and candidate.is_relative_to(FRONTEND_DIST.resolve()):
             return FileResponse(candidate)
         return FileResponse(FRONTEND_DIST / "index.html")
