@@ -6,6 +6,12 @@ customers, and orders. Use this for local dev resets, not on a live database
 with real orders (the live site instead auto-seeds empty catalog tables on
 startup - see app/seed_data.py:seed_if_empty).
 """
+import os
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from app.auth import hash_password
 from app.database import Base, SessionLocal, engine
 from app.models import AdminUser
@@ -16,11 +22,13 @@ Base.metadata.create_all(bind=engine)
 
 db = SessionLocal()
 
-db.add(AdminUser(username="admin", hashed_password=hash_password("aaiji@admin123"), role="developer"))
+admin_username = os.environ.get("DEFAULT_ADMIN_USERNAME", "admin")
+admin_password = os.environ.get("DEFAULT_ADMIN_PASSWORD", "aaiji@admin123")
+db.add(AdminUser(username=admin_username, hashed_password=hash_password(admin_password), role="developer"))
 populate_catalog(db)
 
 db.commit()
 db.close()
 
 print("Database seeded successfully.")
-print("Admin login -> username: admin | password: aaiji@admin123")
+print(f"Admin login -> username: {admin_username} | password: set via DEFAULT_ADMIN_PASSWORD in your local .env")
