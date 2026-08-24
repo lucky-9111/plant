@@ -79,13 +79,13 @@ backend on port 8000 (see `frontend/vite.config.js`). After making frontend chan
 ## Admin login
 
 - URL: `/admin/login`
-- Username: `admin`
-- Password: `aaiji@admin123`
+- Credentials: set via the `DEFAULT_ADMIN_USERNAME` / `DEFAULT_ADMIN_PASSWORD` environment
+  variables (see `.env.example`). These are only used to auto-create the first admin account when
+  the `admin_users` table is empty (e.g. on a fresh deploy) — never commit real values for these.
 
-**Change this password before putting the site anywhere public.** There's no UI for it yet — the
-fastest way is to edit `seed.py`'s admin user block and re-run `python seed.py` (this wipes and
-reseeds the whole database), or hash a new password with `app.auth.hash_password()` and update the
-row directly.
+Once logged in as a developer-role admin, use the dashboard's Admins section to create additional
+admin accounts, reset passwords, or change roles — no need to touch `seed.py` or the database
+directly for day-to-day admin management.
 
 From the admin dashboard you can manage every section of the site without touching code:
 Categories, Plants (with category assignment, pricing, stock, features), Services, Pricing Plans,
