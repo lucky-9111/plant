@@ -1,6 +1,6 @@
 import { useCart } from "../context/CartContext";
 
-export default function BuyNowButton({ plant, variantId = null, className = "", style }) {
+export default function BuyNowButton({ plant, variantId = null, quantity = 1, className = "", style }) {
   const { buyNow } = useCart();
   const hasVariants = plant.variants && plant.variants.length > 0;
   const selectedVariant = hasVariants ? plant.variants.find((v) => v.id === variantId) : null;
@@ -10,13 +10,16 @@ export default function BuyNowButton({ plant, variantId = null, className = "", 
       ? selectedVariant.stock_quantity <= 0
       : false
     : plant.stock_quantity <= 0;
-  const disabled = outOfStock || needsVariant;
+  const exceedsStock = hasVariants
+    ? selectedVariant && quantity > selectedVariant.stock_quantity
+    : quantity > plant.stock_quantity;
+  const disabled = outOfStock || needsVariant || exceedsStock;
 
   function handleClick(e) {
     e.preventDefault();
     e.stopPropagation();
     if (disabled) return;
-    buyNow(plant, 1, variantId);
+    buyNow(plant, quantity, variantId);
   }
 
   return (
@@ -27,7 +30,13 @@ export default function BuyNowButton({ plant, variantId = null, className = "", 
       onClick={handleClick}
       disabled={disabled}
     >
-      {outOfStock ? "Out of Stock" : needsVariant ? "Select a Tray Size" : "Buy Now"}
+      {outOfStock
+        ? "Out of Stock"
+        : needsVariant
+          ? "Select a Tray Size"
+          : exceedsStock
+            ? "Not Enough Stock"
+            : "Buy Now"}
     </button>
   );
 }

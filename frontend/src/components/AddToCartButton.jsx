@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useCart } from "../context/CartContext";
 
-export default function AddToCartButton({ plant, variantId = null, className = "", style }) {
+export default function AddToCartButton({ plant, variantId = null, quantity = 1, className = "", style }) {
   const { addToCart } = useCart();
   const [loading, setLoading] = useState(false);
   const hasVariants = plant.variants && plant.variants.length > 0;
@@ -12,7 +12,10 @@ export default function AddToCartButton({ plant, variantId = null, className = "
       ? selectedVariant.stock_quantity <= 0
       : false
     : plant.stock_quantity <= 0;
-  const disabled = loading || outOfStock || needsVariant;
+  const exceedsStock = hasVariants
+    ? selectedVariant && quantity > selectedVariant.stock_quantity
+    : quantity > plant.stock_quantity;
+  const disabled = loading || outOfStock || needsVariant || exceedsStock;
 
   async function handleClick(e) {
     e.preventDefault();
@@ -20,7 +23,7 @@ export default function AddToCartButton({ plant, variantId = null, className = "
     if (disabled) return;
     setLoading(true);
     try {
-      await addToCart(plant, 1, variantId);
+      await addToCart(plant, quantity, variantId);
     } finally {
       setLoading(false);
     }
@@ -38,9 +41,11 @@ export default function AddToCartButton({ plant, variantId = null, className = "
         ? "Out of Stock"
         : needsVariant
           ? "Select a Tray Size"
-          : loading
-            ? "Adding..."
-            : "Add to Cart"}
+          : exceedsStock
+            ? "Not Enough Stock"
+            : loading
+              ? "Adding..."
+              : "Add to Cart"}
     </button>
   );
 }

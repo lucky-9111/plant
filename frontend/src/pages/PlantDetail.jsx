@@ -15,12 +15,14 @@ export default function PlantDetail() {
   const [related, setRelated] = useState(null);
   const [notFound, setNotFound] = useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState(null);
+  const [quantity, setQuantity] = useState(1);
   useDocumentTitle(plant ? `${plant.name} | Aaiji Nursery` : "Plant Details | Aaiji Nursery");
 
   useEffect(() => {
     setPlant(null);
     setNotFound(false);
     setSelectedVariantId(null);
+    setQuantity(1);
     api
       .get(`/plants/${slug}`)
       .then(setPlant)
@@ -44,6 +46,11 @@ export default function PlantDetail() {
   if (!plant) return <Loading />;
 
   const hasVariants = plant.variants && plant.variants.length > 0;
+
+  function handleSelectVariant(variantId) {
+    setSelectedVariantId(variantId);
+    setQuantity(1);
+  }
 
   return (
     <>
@@ -77,13 +84,40 @@ export default function PlantDetail() {
                   <TraySelector
                     plant={plant}
                     selectedVariantId={selectedVariantId}
-                    onSelect={setSelectedVariantId}
+                    onSelect={handleSelectVariant}
+                    quantity={quantity}
+                    onQuantityChange={setQuantity}
                   />
                 </div>
               ) : (
-                <div className="price" style={{ fontSize: "1.6rem", marginBottom: 16 }}>
-                  &#8377;{plant.effective_price}
-                  {plant.discount_price ? <span className="strike">&#8377;{plant.price}</span> : null}
+                <div style={{ marginBottom: 16 }}>
+                  <div className="price" style={{ fontSize: "1.6rem", marginBottom: plant.stock_quantity > 0 ? 10 : 0 }}>
+                    &#8377;{plant.effective_price}
+                    {plant.discount_price ? <span className="strike">&#8377;{plant.price}</span> : null}
+                  </div>
+                  {plant.stock_quantity > 0 && (
+                    <div className="cart-row-qty">
+                      <button
+                        type="button"
+                        className="qty-btn"
+                        onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                        disabled={quantity <= 1}
+                        aria-label="Decrease quantity"
+                      >
+                        &minus;
+                      </button>
+                      <span className="qty-value">{quantity}</span>
+                      <button
+                        type="button"
+                        className="qty-btn"
+                        onClick={() => setQuantity((q) => Math.min(plant.stock_quantity, q + 1))}
+                        disabled={quantity >= plant.stock_quantity}
+                        aria-label="Increase quantity"
+                      >
+                        +
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
               <p>{plant.description}</p>
@@ -95,8 +129,8 @@ export default function PlantDetail() {
                 </ul>
               )}
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                <AddToCartButton plant={plant} variantId={selectedVariantId} />
-                <BuyNowButton plant={plant} variantId={selectedVariantId} />
+                <AddToCartButton plant={plant} variantId={selectedVariantId} quantity={quantity} />
+                <BuyNowButton plant={plant} variantId={selectedVariantId} quantity={quantity} />
                 <WishlistButton plant={plant} />
                 <Link
                   to={`/contact?plant_id=${plant.id}&plant_name=${encodeURIComponent(plant.name)}`}
