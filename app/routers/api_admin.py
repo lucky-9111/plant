@@ -849,17 +849,21 @@ def list_orders(
     if search:
         term = search.strip()
         like = f"%{term}%"
-        conditions = [
-            Customer.name.ilike(like),
-            Customer.email.ilike(like),
-            Customer.mobile.ilike(like),
-            Order.delivery_name.ilike(like),
-            Order.delivery_mobile.ilike(like),
-        ]
-        digits = "".join(ch for ch in term if ch.isdigit())
-        if digits:
-            conditions.append(Order.id == int(digits))
-        query = query.filter(or_(*conditions))
+        if term.isdigit() and len(term) <= 6:
+            # Short all-digit input is almost certainly an order ID, not a
+            # phone number fragment — matching it against mobile numbers
+            # (which contain most digits by chance) caused unrelated orders
+            # to show up. Treat it as an exact ID lookup instead.
+            query = query.filter(Order.id == int(term))
+        else:
+            conditions = [
+                Customer.name.ilike(like),
+                Customer.email.ilike(like),
+                Customer.mobile.ilike(like),
+                Order.delivery_name.ilike(like),
+                Order.delivery_mobile.ilike(like),
+            ]
+            query = query.filter(or_(*conditions))
 
     if status:
         query = query.filter(Order.status == status)

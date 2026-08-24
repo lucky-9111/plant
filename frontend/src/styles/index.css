@@ -1437,11 +1437,23 @@ select:focus-visible {
   border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow: var(--shadow-lg);
+  position: relative;
+  aspect-ratio: 5 / 4;
 }
 
 .hero-image img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   aspect-ratio: 5 / 4;
   object-fit: cover;
+  opacity: 0;
+  transition: opacity 1.2s ease-in-out;
+}
+
+.hero-image img.is-active {
+  opacity: 1;
 }
 
 @media (max-width: 860px) {

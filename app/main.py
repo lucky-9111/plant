@@ -137,3 +137,32 @@ if FRONTEND_DIST.exists():
         if full_path and candidate.is_file() and candidate.is_relative_to(FRONTEND_DIST.resolve()):
             return FileResponse(candidate)
         return FileResponse(FRONTEND_DIST / "index.html")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

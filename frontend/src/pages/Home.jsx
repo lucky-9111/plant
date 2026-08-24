@@ -5,6 +5,7 @@ import { useSettings } from "../context/SettingsContext";
 import PlantCard from "../components/PlantCard";
 import PlantCarousel from "../components/PlantCarousel";
 import PlantExplorer from "../components/PlantExplorer";
+import HeroImageSlider from "../components/HeroImageSlider";
 import Stars from "../components/Stars";
 import Avatar from "../components/Avatar";
 import { Loading } from "../components/Loading";
@@ -62,10 +63,7 @@ export default function Home() {
             </div>
           </div>
           <div className="hero-image">
-            <img
-              src="https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?w=900"
-              alt="Lush green plants"
-            />
+            <HeroImageSlider alt="Lush green plants" />
           </div>
         </div>
       </section>
