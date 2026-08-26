@@ -164,6 +164,17 @@ button, input, textarea, select {
   }
 }
 
+/* .grid-2 pairs a photo with text content (About, PlantDetail, OrderDetail)
+   and, unlike .grid-3/.grid-4 above, was never given a mobile override —
+   it stayed a fixed 2-up grid all the way down to phone widths, squeezing
+   the image into a small square. Stack it to one column below tablet width
+   so the image gets full container width instead. */
+@media (max-width: 768px) {
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---------- Landing page mobile carousels ----------
    Desktop keeps the existing "Shop by Category" tiles + "Featured Plants"
    grid untouched; below 620px those are swapped for horizontal, swipeable
@@ -854,28 +865,106 @@ select:focus-visible {
   }
 }
 
-/* iPad landscape / narrow smaller-laptop windows: preserve the same spacing rhythm and let the row flex instead of collapsing. */
-@media (max-width: 1024px) {
+/* Tablets (768-899px): full desktop navigation, forced onto ONE row (no
+   wrapping, no hamburger, no quicklinks -- see the 767px collapse
+   breakpoint below). There isn't room for a desktop-size row here, so
+   type/padding/search width are tightened just enough to make every item
+   fit on the single line while still giving links a real, consistent
+   14px gap (not a tiny 1px squeeze, not a space-between stretch that
+   leaves empty margins at the edges) -- tested live as the widest gap
+   that still avoids overlap at the narrowest width in this band (768px,
+   including the ~16px a real vertical scrollbar eats on Windows Chrome).
+   justify-content: center (not space-between, and not flex-start -- which
+   packs the group flush against the logo and dumps all the row's leftover
+   width into one lopsided gap right before search/login) keeps the link
+   group looking like one balanced, intentional block in the row instead of
+   spread thin or shoved to one side. */
+@media (min-width: 768px) and (max-width: 899px) {
   .navbar .container {
+    flex-wrap: nowrap;
     gap: 8px;
   }
+  .brand {
+    margin-right: 10px;
+  }
   .brand-logo {
-    height: 56px;
+    height: 44px;
   }
   .nav-links {
-    gap: clamp(0.15rem, 0.55vw, 0.8rem);
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 7px;
   }
   .nav-links a:not(.btn) {
-    padding: 0.45rem 0.5rem;
+    padding: 0.28rem 0.1rem;
+    font-size: 0.7rem;
+    white-space: nowrap;
+  }
+  .nav-links .btn {
+    padding: 5px 7px;
+    font-size: 0.72rem;
+    white-space: nowrap;
   }
   .nav-actions {
     gap: 8px;
   }
   .nav-right {
-    gap: 6px;
+    gap: 8px;
   }
-  .nav-search-bar {
-    width: 120px;
+  .nav-cart-link {
+    width: 26px;
+    height: 26px;
+    font-size: 0.9rem;
+  }
+  .nav-account-avatar {
+    width: 20px;
+    height: 20px;
+    font-size: 0.7rem;
+  }
+  .nav-account-name {
+    display: none;
+  }
+  /* .nav-search-bar width for this tier is set later in the file, after the
+     base .nav-search-bar rule, so it actually wins the cascade -- see the
+     "Tablet-band search width" comment near the base rule. */
+}
+
+/* Narrow laptop / iPad landscape (900-1199px): more breathing room than the
+   768-899px tier above, still a single row, still flex-start (not
+   space-between). Link gap grows with viewport width (11-14px across this
+   band) rather than a single fixed value, since the row is right at its
+   width budget at 900px but has more slack by 1199px. */
+@media (min-width: 900px) and (max-width: 1199px) {
+  .navbar .container {
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+  .brand {
+    margin-right: 2px;
+  }
+  .brand-logo {
+    height: 48px;
+  }
+  .nav-links {
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: clamp(2px, 1vw, 22px);
+  }
+  .nav-links a:not(.btn) {
+    padding: 0.4rem 0.1rem;
+    font-size: 0.82rem;
+    white-space: nowrap;
+  }
+  .nav-links .btn {
+    padding: 7px 8px;
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+  .nav-actions {
+    gap: 5px;
+  }
+  .nav-right {
+    gap: 4px;
   }
   .nav-cart-link {
     width: 28px;
@@ -890,14 +979,46 @@ select:focus-visible {
   .nav-account-name {
     max-width: 44px;
   }
+  /* .nav-search-bar width for this tier is set later in the file, after the
+     base .nav-search-bar rule, so it actually wins the cascade -- see the
+     "Tablet-band search width" comment near the base rule. */
 }
 
-/* Tablet portrait and phones: not enough room for the full link row, collapse to the hamburger menu.
-   This breakpoint also carries the mobile-only header rework: a compact
-   quick-links row, the search bar moved to its own full-width row below
-   (via position:absolute so the DOM/markup — and desktop — stay untouched),
-   and the account menu becoming a dropdown instead of a bare Logout link. */
-@media (max-width: 1023px) {
+/* Laptop / desktop (1200px+): the existing single-row navbar, but with
+   genuinely comfortable spacing instead of the tight clamp() the base rule
+   used -- a fixed 20-28px gap between links that grows with viewport width,
+   so links have visible breathing room and use the available width instead
+   of clustering as a tight group in the center. Verified live: a single row
+   at THIS generous a spacing needs ~1150px minimum before it stops
+   overlapping search, so this starts at 1200px for a safety margin
+   (768-1199px above is still one row too, just tightened -- see the two
+   tiers above). No upper bound -- this is the real desktop navbar now,
+   same as 1366/1440px and wider. */
+@media (min-width: 1200px) {
+  .nav-links {
+    gap: clamp(20px, 1.8vw, 28px);
+  }
+  .nav-links a:not(.btn) {
+    padding: 0.55rem 0.15rem;
+  }
+  .nav-links .btn {
+    margin-left: 8px;
+  }
+  .nav-actions {
+    gap: 18px;
+  }
+  .nav-right {
+    gap: 16px;
+  }
+}
+
+/* Phones: not enough room for the full link row even tightened, collapse to
+   the hamburger menu. This breakpoint also carries the mobile-only header
+   rework: a compact quick-links row, the search bar moved to its own
+   full-width row below (via position:absolute so the DOM/markup — and
+   tablet/desktop — stay untouched), and the account menu becoming a
+   dropdown instead of a bare Logout link. */
+@media (max-width: 767px) {
   /* nowrap is deliberate: row 1 (logo/quicklinks/cart/account/hamburger)
      must never spill onto a third line, in either auth state — it only
      ever has two rows, with search on its own row via position:absolute
@@ -1161,7 +1282,7 @@ select:focus-visible {
 /* Placed right after the base rule above so it wins the cascade (same
    specificity, later source order) — moves search onto its own full-width
    row below the compact top row, without touching the DOM or desktop. */
-@media (max-width: 1023px) {
+@media (max-width: 767px) {
   .nav-search {
     position: absolute;
     left: clamp(12px, 2vw, 28px);
@@ -1181,6 +1302,34 @@ select:focus-visible {
   border: 1.5px solid var(--color-border);
   background: var(--color-bg);
   transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, width 0.25s ease;
+}
+
+/* Tablet-band search width -- placed after the base .nav-search-bar rule
+   above (which unconditionally sets width: 230px) so these actually win the
+   cascade at equal specificity, matching the pattern used for the mobile
+   width:100% rule further down. Three tiers matching the tightening bands
+   defined earlier in the file, all sharing one row with the full link list
+   (no second row, no icon-collapse). Kept compact here on purpose -- the
+   priority at these widths is comfortable, consistent gaps between the 9
+   links (per direct product feedback), so search gives up some of its own
+   width to make room for that rather than the other way around; it's still
+   a usable click target, just not a fully expanded box like desktop's. */
+@media (min-width: 768px) and (max-width: 899px) {
+  .nav-search-bar {
+    width: 55px;
+  }
+}
+
+@media (min-width: 900px) and (max-width: 1199px) {
+  .nav-search-bar {
+    width: 100px;
+  }
+}
+
+@media (min-width: 1200px) {
+  .nav-search-bar {
+    width: 180px;
+  }
 }
 
 .nav-search:focus-within .nav-search-bar {
@@ -1269,7 +1418,7 @@ select:focus-visible {
 /* Placed after the base .nav-search-bar rule above (which unconditionally
    sets width: 230px) so this wins the cascade at the same specificity —
    the mobile-only block earlier in the file was losing to it otherwise. */
-@media (max-width: 1023px) {
+@media (max-width: 767px) {
   .nav-search-bar {
     width: 100%;
   }
@@ -1343,42 +1492,6 @@ select:focus-visible {
 
 .nav-search-viewall:hover {
   background: rgba(64, 145, 108, 0.16);
-}
-
-/* This narrow sliver (hamburger not active yet, search still sits inline in
-   the top row) is the only range where the search bar still needs to
-   shrink — below 1023px it now lives on its own full-width row instead.
-   Measured against the live nav-links row: shrinking the bar's width alone
-   still collides with "Get in Touch" all the way down to ~90px wide, which
-   is too cramped to show any placeholder text. Instead it collapses to an
-   icon-only button (matching the ~40px size of the cart/login icons next to
-   it) and expands into a floating overlay on focus, so it never competes
-   with the rest of the row for space either collapsed or expanded.
-   flex-direction: row-reverse keeps the icon pinned to the bar's right edge
-   (which never moves — the collapsed 42px box and the expanded absolute
-   box share the same right edge) instead of its left edge, which would
-   otherwise shift ~190px left the instant focus lands and make the icon
-   dodge out from under the cursor mid-click. */
-@media (min-width: 1024px) and (max-width: 1180px) {
-  .nav-search {
-    width: 42px;
-  }
-  .nav-search-bar {
-    flex-direction: row-reverse;
-    width: 42px;
-    padding-left: 0;
-    overflow: hidden;
-  }
-  .nav-search:focus-within .nav-search-bar {
-    position: absolute;
-    top: 50%;
-    right: 0;
-    transform: translateY(-50%);
-    width: 230px;
-    padding-left: 8px;
-    overflow: visible;
-    z-index: 10;
-  }
 }
 
 @media (max-width: 480px) {

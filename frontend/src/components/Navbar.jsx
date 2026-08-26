@@ -13,7 +13,7 @@ import logoImg from "../assets/logo.png";
 const LINKS = [
   { to: "/", label: "Home", icon: "\u{1F3E0}" },
   { to: "/about", label: "About Us", icon: "ℹ️" },
-  { to: "/plants", label: "Plants", icon: "\u{1F33F}" },
+  { to: "/plants", label: "Shop", icon: "\u{1F33F}" },
   { to: "/services", label: "Services", icon: "⚙️" },
   { to: "/pricing", label: "Pricing", icon: "\u{1F3F7}️" },
   { to: "/gallery", label: "Gallery", icon: "\u{1F5BC}️" },
@@ -27,14 +27,14 @@ const LINKS = [
 // hamburger drawer for mobile, and is the only nav shown on desktop.
 const QUICK_LINKS = [
   { to: "/", label: "Home", end: true },
-  { to: "/plants", label: "Plants" },
+  { to: "/plants", label: "Shop" },
   { to: "/contact", label: "Contact" },
 ];
 
 // Matches the existing "collapse to hamburger" breakpoint in index.css
 // (.nav-links goes fixed/off-canvas at this width) — the account dropdown
 // should only intercept clicks in that same regime, never on desktop.
-const MOBILE_BREAKPOINT = "(max-width: 1023px)";
+const MOBILE_BREAKPOINT = "(max-width: 767px)";
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
