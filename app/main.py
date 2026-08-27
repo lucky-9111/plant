@@ -12,8 +12,9 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.accounting.router import router as accounting_router
 from app.database import Base, SessionLocal, engine
-from app.routers import api_admin, api_customer, api_public
+from app.routers import api_admin, api_admin_analytics, api_customer, api_public
 from app.seed_data import seed_if_empty
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -92,6 +93,24 @@ with engine.connect() as conn:
         conn.execute(text("ALTER TABLE order_items ADD COLUMN tray_size INTEGER"))
         conn.commit()
 
+    # Accounting module: extends the existing Purchase table (rather than a
+    # duplicate "Bill" table) with status/due_date/source/contact_id. Existing
+    # rows backfill to status='Paid' since every Purchase recorded before this
+    # column existed represented an already-settled procurement event.
+    purchase_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(purchases)"))}
+    if "status" not in purchase_columns:
+        conn.execute(text("ALTER TABLE purchases ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'Paid'"))
+        conn.commit()
+    if "due_date" not in purchase_columns:
+        conn.execute(text("ALTER TABLE purchases ADD COLUMN due_date DATETIME"))
+        conn.commit()
+    if "source" not in purchase_columns:
+        conn.execute(text("ALTER TABLE purchases ADD COLUMN source VARCHAR(10) NOT NULL DEFAULT 'offline'"))
+        conn.commit()
+    if "contact_id" not in purchase_columns:
+        conn.execute(text("ALTER TABLE purchases ADD COLUMN contact_id INTEGER"))
+        conn.commit()
+
 app = FastAPI(title="Aaiji Nursery")
 
 
@@ -126,6 +145,8 @@ app.add_middleware(
 
 app.include_router(api_public.router)
 app.include_router(api_admin.router)
+app.include_router(api_admin_analytics.router)
+app.include_router(accounting_router)
 app.include_router(api_customer.router)
 
 if FRONTEND_DIST.exists():

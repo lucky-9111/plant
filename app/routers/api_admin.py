@@ -8,6 +8,8 @@ from slugify import slugify
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload, selectinload
 
+from app.accounting.sync import sync_order_to_accounting
+from app.analytics_utils import INACTIVE_DAYS
 from app.auth import hash_password, verify_password
 from app.database import BASE_DIR, get_db
 from app.deps import get_current_admin, get_current_developer
@@ -30,6 +32,8 @@ from app.models import (
     Plant,
     PlantVariant,
     PricingPlan,
+    Purchase,
+    PurchaseItem,
     Service,
     SiteSetting,
     Testimonial,
@@ -64,6 +68,8 @@ from app.schemas import (
     PlantVariantIn,
     PricingPlanIn,
     PricingPlanOut,
+    PurchaseIn,
+    PurchaseOut,
     ServiceIn,
     ServiceOut,
     SettingsIn,
@@ -445,6 +451,82 @@ def delete_plant(
     item = get_or_404(db, Plant, item_id)
     db.delete(item)
     db.commit()
+
+
+# ---------- Purchases (procurement) ----------
+
+@router.get("/purchases", response_model=list[PurchaseOut])
+def list_purchases(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
+    return (
+        db.query(Purchase)
+        .options(selectinload(Purchase.items))
+        .order_by(Purchase.purchase_date.desc())
+        .all()
+    )
+
+
+@router.post("/purchases", response_model=PurchaseOut, status_code=201)
+def create_purchase(
+    payload: PurchaseIn, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
+):
+    if not payload.items:
+        raise HTTPException(status_code=400, detail="At least one purchase item is required")
+    plant_ids = {i.plant_id for i in payload.items}
+    plants = {p.id: p for p in db.query(Plant).filter(Plant.id.in_(plant_ids)).all()}
+    missing = plant_ids - plants.keys()
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Unknown plant id(s): {sorted(missing)}")
+
+    purchase = Purchase(
+        purchase_date=payload.purchase_date,
+        supplier=payload.supplier.strip(),
+        invoice_number=payload.invoice_number.strip(),
+        notes=payload.notes.strip(),
+        created_by=admin,
+    )
+    db.add(purchase)
+    db.flush()
+
+    total = 0.0
+    for item in payload.items:
+        if item.quantity <= 0:
+            raise HTTPException(status_code=400, detail="Quantity must be greater than 0")
+        if item.unit_cost < 0:
+            raise HTTPException(status_code=400, detail="Unit cost cannot be negative")
+        plant = plants[item.plant_id]
+        line_total = round(item.quantity * item.unit_cost, 2)
+        db.add(
+            PurchaseItem(
+                purchase_id=purchase.id,
+                plant_id=plant.id,
+                plant_name=plant.name,
+                quantity=item.quantity,
+                unit_cost=item.unit_cost,
+                total_cost=line_total,
+            )
+        )
+        plant.stock_quantity += item.quantity  # procurement receipt increments live stock
+        total += line_total
+
+    purchase.total_cost = round(total, 2)
+    db.commit()
+    db.refresh(purchase)
+    log_activity(
+        db, admin, "purchase_created", f"Purchase #{purchase.id}: {payload.supplier or 'Unknown supplier'}"
+    )
+    return purchase
+
+
+@router.delete("/purchases/{item_id}", status_code=204)
+def delete_purchase(
+    item_id: int, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
+):
+    item = get_or_404(db, Purchase, item_id)
+    # Intentionally does not decrement Plant.stock_quantity back out -- received
+    # stock may already be sold or mixed with other stock by deletion time.
+    db.delete(item)
+    db.commit()
+    log_activity(db, admin, "purchase_deleted", f"Purchase #{item.id}")
 
 
 # ---------- Services ----------
@@ -933,6 +1015,7 @@ def update_order_status(
             )
         )
     db.commit()
+    sync_order_to_accounting(order.id)
 
     order = _get_order_or_404(db, order_id)
     if status_changed:
@@ -976,6 +1059,7 @@ def admin_cancel_order(
         )
     )
     db.commit()
+    sync_order_to_accounting(order.id)
 
     order = _get_order_or_404(db, order_id)
     log_activity(db, admin, "order_cancel", f"Order #{order.id} cancelled")
@@ -1023,6 +1107,13 @@ def get_customer(
         .order_by(Order.created_at.desc())
         .all()
     )
+    # Cancelled orders never generated real revenue -- excluding them here (not just
+    # in the analytics endpoints) keeps this "total spent" consistent with the
+    # VIP/segment thresholds that reuse the same spend figure.
+    revenue_orders = [o for o in orders if o.status != "Cancelled"]
+    total_spent = sum(o.total_amount for o in revenue_orders)
+    last_order_at = revenue_orders[0].created_at if revenue_orders else None
+    is_active = bool(last_order_at) and (datetime.utcnow() - last_order_at).days <= INACTIVE_DAYS
     return CustomerAdminDetailOut(
         id=customer.id,
         name=customer.name,
@@ -1030,7 +1121,10 @@ def get_customer(
         mobile=customer.mobile,
         created_at=customer.created_at,
         total_orders=len(orders),
-        total_spent=sum(o.total_amount for o in orders),
+        total_spent=total_spent,
+        avg_order_value=round(total_spent / len(revenue_orders), 2) if revenue_orders else 0,
+        last_order_date=last_order_at,
+        status="active" if is_active else "inactive",
         orders=[CustomerOrderOut.model_validate(o) for o in orders],
     )
 

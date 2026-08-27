@@ -557,6 +557,11 @@ select:focus-visible {
   color: var(--color-text-muted);
 }
 
+.badge-danger {
+  background: rgba(193, 68, 60, 0.12);
+  color: var(--color-danger);
+}
+
 /* ---------- Navbar ---------- */
 
 .navbar {

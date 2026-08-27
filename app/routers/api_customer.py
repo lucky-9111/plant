@@ -6,6 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session, joinedload
 
+from app.accounting.sync import sync_order_to_accounting
 from app.auth import hash_password, verify_password
 from app.database import get_db
 from app.deps import get_current_customer
@@ -579,6 +580,7 @@ def checkout(
     if clear_cart:
         db.query(CartItem).filter(CartItem.customer_id == customer_id).delete()
     db.commit()
+    sync_order_to_accounting(order.id)
 
     order = get_or_404_order(db, order.id, customer_id)
     if payload.payment_method != "Razorpay":
@@ -629,6 +631,7 @@ def verify_payment(
         )
     )
     db.commit()
+    sync_order_to_accounting(order.id)
 
     order = get_or_404_order(db, order_id, customer_id)
     notify_order_status(order, old_status, order.status)
@@ -646,6 +649,7 @@ def mark_payment_failed(
     if order.payment_method == "Razorpay" and order.payment_status != "Paid":
         order.payment_status = "Failed"
         db.commit()
+        sync_order_to_accounting(order.id)
         order = get_or_404_order(db, order_id, customer_id)
         print(f"[payment] Order #{order.id} payment not completed: {payload.reason or 'unspecified'}")
     return order
@@ -704,6 +708,7 @@ def cancel_order(
         )
     )
     db.commit()
+    sync_order_to_accounting(order.id)
 
     order = get_or_404_order(db, order_id, customer_id)
     notify_order_cancelled(db, order, old_status, cancelled_by="customer", reason=payload.remarks)

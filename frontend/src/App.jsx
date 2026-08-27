@@ -26,6 +26,8 @@ import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import AdminLayout from "./admin/AdminLayout";
 import AdminDashboard from "./admin/pages/Dashboard";
+import AdminAnalytics from "./admin/pages/Analytics";
+import AdminPurchases from "./admin/pages/Purchases";
 import AdminOrders from "./admin/pages/Orders";
 import AdminOrderDetail from "./admin/pages/OrderDetail";
 import AdminCategories from "./admin/pages/Categories";
@@ -44,6 +46,14 @@ import AdminSettings from "./admin/pages/Settings";
 import AdminAdmins from "./admin/pages/Admins";
 import AdminActivityLog from "./admin/pages/ActivityLog";
 import AdminSystemInfo from "./admin/pages/SystemInfo";
+import AccountingOverview from "./admin/pages/accounting/Overview";
+import AccountingSalesOrders from "./admin/pages/accounting/SalesOrders";
+import AccountingSalesOrderDetail from "./admin/pages/accounting/SalesOrderDetail";
+import AccountingInvoices from "./admin/pages/accounting/Invoices";
+import AccountingInvoiceDetail from "./admin/pages/accounting/InvoiceDetail";
+import AccountingContacts from "./admin/pages/accounting/Contacts";
+import AccountingChartOfAccounts from "./admin/pages/accounting/ChartOfAccounts";
+import AccountingTaxRates from "./admin/pages/accounting/TaxRates";
 export default function App() {
   const location = useLocation();
   // When navigation to /login carries a backgroundLocation (set by the Navbar's
@@ -85,10 +95,12 @@ export default function App() {
         <Route path="/admin/login" element={<Navigate to="/login" replace />} />
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<AdminDashboard />} />
+          <Route path="analytics" element={<AdminAnalytics />} />
           <Route path="orders" element={<AdminOrders />} />
           <Route path="orders/:id" element={<AdminOrderDetail />} />
           <Route path="categories" element={<AdminCategories />} />
           <Route path="plants" element={<AdminPlants />} />
+          <Route path="purchases" element={<AdminPurchases />} />
           <Route path="services" element={<AdminServices />} />
           <Route path="pricing-plans" element={<AdminPricingPlans />} />
           <Route path="faqs" element={<AdminFAQs />} />
@@ -103,6 +115,14 @@ export default function App() {
           <Route path="admins" element={<AdminAdmins />} />
           <Route path="developer/activity-log" element={<AdminActivityLog />} />
           <Route path="developer/system-info" element={<AdminSystemInfo />} />
+          <Route path="accounting" element={<AccountingOverview />} />
+          <Route path="accounting/sales-orders" element={<AccountingSalesOrders />} />
+          <Route path="accounting/sales-orders/:id" element={<AccountingSalesOrderDetail />} />
+          <Route path="accounting/invoices" element={<AccountingInvoices />} />
+          <Route path="accounting/invoices/:id" element={<AccountingInvoiceDetail />} />
+          <Route path="accounting/contacts" element={<AccountingContacts />} />
+          <Route path="accounting/chart-of-accounts" element={<AccountingChartOfAccounts />} />
+          <Route path="accounting/tax-rates" element={<AccountingTaxRates />} />
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>

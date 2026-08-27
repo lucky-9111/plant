@@ -478,3 +478,357 @@ table.admin-table .row-actions {
   .admin-nav a.active { border-bottom-color: var(--color-accent-light); }
   .admin-content { padding: 18px; }
 }
+
+/* ---------- Business Analytics Dashboard ---------- */
+
+.analytics-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.analytics-range-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.analytics-range-picker .form-control {
+  width: auto;
+}
+
+/* Sticky pill row of in-page section links -- same visual language as
+   .admin-nav's pills, just horizontal, so the 26-section page is scannable
+   without turning into separate sub-routes/tabs (which would break
+   cross-filtering and force re-fetching per tab). */
+.analytics-jump-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--color-bg);
+  padding: 10px 0;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.analytics-jump-nav a {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.analytics-jump-nav a:hover {
+  color: var(--color-primary);
+  border-color: var(--color-accent-light);
+}
+
+.analytics-section {
+  scroll-margin-top: 70px;
+  margin-bottom: 40px;
+}
+
+.analytics-drilldown-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(64, 145, 108, 0.1);
+  border: 1px solid var(--color-accent-light);
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  margin-bottom: 20px;
+  font-size: 0.88rem;
+  color: var(--color-primary-dark);
+}
+
+.analytics-toggle-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.analytics-kpi-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.analytics-kpi-trend-up {
+  color: var(--color-accent);
+}
+
+.analytics-kpi-trend-down {
+  color: var(--color-danger);
+}
+
+.analytics-kpi-sublabel {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  margin-top: 6px;
+}
+
+/* Charts need a minimum pixel width to stay legible, so on narrow screens
+   they scroll horizontally inside their own container instead of squashing
+   -- same overflow-x:auto convention already used by .admin-table-wrap. */
+.analytics-chart-scroll {
+  overflow-x: auto;
+}
+
+.analytics-split-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.analytics-split-layout > div {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .analytics-split-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.analytics-color-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.analytics-top-plants-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.analytics-top-plant-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  box-shadow: var(--shadow);
+  text-align: left;
+  width: 100%;
+}
+
+.analytics-top-plant-rank {
+  font-size: 1.3rem;
+  width: 32px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.analytics-top-plant-img {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--color-border);
+  flex-shrink: 0;
+}
+
+.analytics-top-plant-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.analytics-top-plant-meta {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.analytics-top-plant-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+.analytics-segment-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 8px;
+}
+
+.analytics-segment-card {
+  text-align: left;
+  cursor: pointer;
+}
+
+.analytics-yoy-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.analytics-alert-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.analytics-alert-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 0.88rem;
+}
+
+.analytics-alert-meta {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.analytics-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 40, 31, 0.45);
+  z-index: 200;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.analytics-drawer {
+  background: var(--color-bg);
+  width: min(720px, 100%);
+  height: 100%;
+  overflow-y: auto;
+  padding: 24px;
+  box-shadow: var(--shadow-lg);
+}
+
+.analytics-export-menu {
+  position: relative;
+}
+
+.analytics-export-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  z-index: 30;
+  min-width: 180px;
+  overflow: hidden;
+}
+
+.analytics-export-dropdown button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  font-size: 0.85rem;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.analytics-export-dropdown button:hover {
+  background: var(--color-bg);
+  color: var(--color-primary);
+}
+
+/* ---------- Customer purchase timeline ---------- */
+
+.customer-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.customer-timeline-item {
+  display: flex;
+  gap: 16px;
+  padding: 12px 0;
+  border-left: 3px solid var(--color-accent-light);
+  padding-left: 16px;
+}
+
+.customer-timeline-date {
+  flex-shrink: 0;
+  width: 100px;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  font-size: 0.85rem;
+}
+
+.customer-timeline-body {
+  font-size: 0.88rem;
+}
+
+.customer-timeline-meta {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  margin-top: 4px;
+}
+
+@media (max-width: 480px) {
+  .customer-timeline-item {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .customer-timeline-date {
+    width: auto;
+  }
+}
+
+/* ---------- Print / PDF export ---------- */
+/* printSection() in exportUtils.js hides every .analytics-section except the
+   one being printed, then calls window.print(); this stylesheet hides chrome
+   (sidebar, topbar, jump-nav, buttons) so the printed page is just the
+   report content. */
+
+@media print {
+  .admin-sidebar,
+  .admin-topbar,
+  .analytics-jump-nav,
+  .analytics-header-actions,
+  .analytics-export-menu,
+  .row-actions {
+    display: none !important;
+  }
+  .admin-content {
+    padding: 0 !important;
+  }
+}

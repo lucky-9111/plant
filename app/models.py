@@ -375,3 +375,51 @@ class OrderStatusHistory(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
     order = relationship("Order", back_populates="history")
+
+
+class Purchase(Base):
+    """A procurement event/invoice -- one or more PurchaseItem batches. Recording a
+    Purchase increments Plant.stock_quantity by each item's quantity. Deleting a
+    Purchase does NOT decrement stock back out (received stock may already be sold
+    or mixed with other stock by deletion time) -- admin UI must warn on delete."""
+
+    __tablename__ = "purchases"
+
+    id = Column(Integer, primary_key=True, index=True)
+    purchase_date = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    supplier = Column(String(150), default="")
+    invoice_number = Column(String(80), default="")
+    notes = Column(Text, default="")
+    total_cost = Column(Float, default=0)  # denormalized sum of item.total_cost
+    created_by = Column(String(80), default="")
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    # Added for the Accounting module (columns backfilled via an ALTER TABLE
+    # shim in app/main.py, same pattern as every other schema change there) --
+    # this lets the existing Purchase/PurchaseItem feature also serve as the
+    # "Bill" concept in Accounting's UI, without a duplicate table.
+    status = Column(String(20), nullable=False, default="Paid", index=True)
+    due_date = Column(DateTime, nullable=True)
+    source = Column(String(10), nullable=False, default="offline", index=True)
+    contact_id = Column(Integer, nullable=True, index=True)
+
+    items = relationship("PurchaseItem", back_populates="purchase", cascade="all, delete-orphan")
+
+
+class PurchaseItem(Base):
+    """One plant batch within a Purchase. unit_cost/total_cost are stored (not
+    derived) so historical analytics stay accurate even if cost varies batch to
+    batch -- mirrors how OrderItem snapshots unit_price at checkout."""
+
+    __tablename__ = "purchase_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    purchase_id = Column(Integer, ForeignKey("purchases.id"), nullable=False, index=True)
+    plant_id = Column(Integer, ForeignKey("plants.id"), nullable=False, index=True)
+    plant_name = Column(String(150), default="")  # snapshot vs. later plant rename/delete
+    quantity = Column(Integer, nullable=False, default=0)
+    unit_cost = Column(Float, nullable=False, default=0)
+    total_cost = Column(Float, default=0)  # = quantity * unit_cost at write time
+
+    purchase = relationship("Purchase", back_populates="items")
+    plant = relationship("Plant")

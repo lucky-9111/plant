@@ -1,0 +1,232 @@
+from datetime import datetime
+from typing import List, Optional
+
+from pydantic import BaseModel, ConfigDict
+
+
+# ---------- Chart of Accounts ----------
+
+class AccountOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    code: str
+    name: str
+    account_type: str
+    parent_id: Optional[int] = None
+    is_active: bool
+    description: str
+
+
+class AccountIn(BaseModel):
+    code: str
+    name: str
+    account_type: str
+    parent_id: Optional[int] = None
+    is_active: bool = True
+    description: str = ""
+
+
+# ---------- Tax Rates ----------
+
+class TaxRateOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    rate_percent: float
+    is_active: bool
+
+
+class TaxRateIn(BaseModel):
+    name: str
+    rate_percent: float = 0
+    is_active: bool = True
+
+
+# ---------- Contacts ----------
+
+class ContactOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    contact_type: str
+    name: str
+    email: str
+    phone: str
+    address: str
+    gstin: str
+    source: str
+    source_id: Optional[str] = None
+    customer_id: Optional[int] = None
+    is_active: bool
+    created_at: datetime
+    # Computed summary fields (filled in by the router, not the ORM object)
+    total_sales: float = 0
+    total_paid: float = 0
+    outstanding: float = 0
+
+
+class ContactIn(BaseModel):
+    contact_type: str = "customer"
+    name: str
+    email: str = ""
+    phone: str = ""
+    address: str = ""
+    gstin: str = ""
+    is_active: bool = True
+
+
+# ---------- Sales Orders ----------
+
+class SalesOrderItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    plant_id: Optional[int] = None
+    description: str
+    quantity: int
+    unit_price: float
+    tax_amount: float
+    line_total: float
+
+
+class SalesOrderItemIn(BaseModel):
+    plant_id: Optional[int] = None
+    description: str = ""
+    quantity: int = 1
+    unit_price: float = 0
+    tax_rate_id: Optional[int] = None
+
+
+class SalesOrderIn(BaseModel):
+    contact_id: int
+    order_date: datetime
+    notes: str = ""
+    items: List[SalesOrderItemIn]
+
+
+class SalesOrderInvoiceRef(BaseModel):
+    """Lightweight nested reference -- avoids a circular full-Invoice embed
+    since Invoice itself embeds SalesOrderOut."""
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    invoice_number: str
+    status: str
+
+
+class SalesOrderOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    contact_id: int
+    order_number: str
+    status: str
+    order_date: datetime
+    subtotal: float
+    tax_total: float
+    total_amount: float
+    notes: str
+    source: str
+    source_id: Optional[str] = None
+    order_ref_id: Optional[int] = None
+    created_by: str
+    created_at: datetime
+    contact: Optional[ContactOut] = None
+    items: List[SalesOrderItemOut] = []
+    invoices: List[SalesOrderInvoiceRef] = []
+
+
+# ---------- Invoices ----------
+
+class InvoiceItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    description: str
+    quantity: int
+    unit_price: float
+    tax_amount: float
+    line_total: float
+
+
+class InvoiceOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    sales_order_id: int
+    contact_id: int
+    invoice_number: str
+    status: str
+    invoice_date: datetime
+    due_date: Optional[datetime] = None
+    subtotal: float
+    tax_total: float
+    discount_total: float
+    total_amount: float
+    amount_paid: float
+    balance_due: float
+    source: str
+    source_id: Optional[str] = None
+    created_at: datetime
+    contact: Optional[ContactOut] = None
+    items: List[InvoiceItemOut] = []
+    sales_order: Optional[SalesOrderOut] = None
+
+
+class InvoiceConvertIn(BaseModel):
+    """Manually convert an (offline) Sales Order into an Invoice."""
+    due_date: Optional[datetime] = None
+
+
+# ---------- Payments In ----------
+
+class PaymentInIn(BaseModel):
+    invoice_id: int
+    amount: float
+    method: str = "Cash"
+    payment_date: datetime
+    reference: str = ""
+    notes: str = ""
+
+
+class PaymentInOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    invoice_id: int
+    contact_id: int
+    amount: float
+    method: str
+    payment_date: datetime
+    reference: str
+    notes: str
+    source: str
+    source_id: Optional[str] = None
+    created_at: datetime
+
+
+# ---------- Audit Log ----------
+
+class AuditLogOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    table_name: str
+    record_id: int
+    action: str
+    field_name: Optional[str] = None
+    old_value: Optional[str] = None
+    new_value: Optional[str] = None
+    changed_by: str
+    changed_at: datetime
+
+
+# ---------- Overview dashboard ----------
+
+class AccountingOverviewOut(BaseModel):
+    range_label: str
+    total_sales: float = 0
+    total_purchases: float = 0
+    receivables: float = 0
+    payables: float = 0
+    total_expenses: float = 0
+    net_profit: Optional[float] = None
+    online_sales: float = 0
+    offline_sales: float = 0
+    pending_invoices: int = 0
+    paid_invoices: int = 0
+    pending_bills: int = 0
+    new_contacts_this_period: int = 0
+    has_data: bool = False

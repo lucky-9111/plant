@@ -5,9 +5,11 @@ import logoImg from "../assets/logo.png";
 
 const NAV = [
   { to: "/admin", label: "Dashboard", end: true },
+  { to: "/admin/analytics", label: "Analytics" },
   { to: "/admin/orders", label: "Orders" },
   { to: "/admin/categories", label: "Categories" },
   { to: "/admin/plants", label: "Plants" },
+  { to: "/admin/purchases", label: "Purchases" },
   { to: "/admin/services", label: "Services" },
   { to: "/admin/pricing-plans", label: "Pricing Plans" },
   { to: "/admin/faqs", label: "FAQs" },
@@ -24,6 +26,15 @@ const NAV = [
 const DEVELOPER_NAV = [
   { to: "/admin/developer/activity-log", label: "Activity Log" },
   { to: "/admin/developer/system-info", label: "System Info" },
+];
+
+const ACCOUNTING_NAV = [
+  { to: "/admin/accounting", label: "Overview", end: true },
+  { to: "/admin/accounting/sales-orders", label: "Sales Orders" },
+  { to: "/admin/accounting/invoices", label: "Invoices" },
+  { to: "/admin/accounting/contacts", label: "Contacts" },
+  { to: "/admin/accounting/chart-of-accounts", label: "Chart of Accounts" },
+  { to: "/admin/accounting/tax-rates", label: "Tax Rates" },
 ];
 
 export default function AdminLayout() {
@@ -43,6 +54,12 @@ export default function AdminLayout() {
         </div>
         <nav className="admin-nav">
           {NAV.map((item) => (
+            <NavLink key={item.to} to={item.to} end={item.end}>
+              {item.label}
+            </NavLink>
+          ))}
+          <div className="admin-nav-heading">Accounting</div>
+          {ACCOUNTING_NAV.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.end}>
               {item.label}
             </NavLink>

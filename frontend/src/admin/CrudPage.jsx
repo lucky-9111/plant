@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { Loading, Empty } from "../components/Loading";
 import VariantsField from "./VariantsField";
+import PurchaseItemsField from "./PurchaseItemsField";
+import SalesOrderItemsField from "./accounting/SalesOrderItemsField";
 
 const emptyValue = (field) => {
   if (field.type === "checkbox") return field.default ?? false;
@@ -17,7 +19,16 @@ function blankForm(fields) {
   return obj;
 }
 
-export default function CrudPage({ title, resource, fields, columns, idKey = "id" }) {
+export default function CrudPage({
+  title,
+  resource,
+  fields,
+  columns,
+  idKey = "id",
+  allowEdit = true,
+  allowDelete = true,
+  deleteConfirmMessage,
+}) {
   const [items, setItems] = useState(null);
   const [mode, setMode] = useState("list"); // list | form
   const [editingId, setEditingId] = useState(null);
@@ -51,7 +62,10 @@ export default function CrudPage({ title, resource, fields, columns, idKey = "id
   }
 
   async function handleDelete(item) {
-    if (!confirm(`Delete "${item[columns[0].key]}"? This cannot be undone.`)) return;
+    const message = deleteConfirmMessage
+      ? deleteConfirmMessage(item)
+      : `Delete "${item[columns[0].key]}"? This cannot be undone.`;
+    if (!confirm(message)) return;
     await api.del(`${resource}/${item[idKey]}`);
     load();
   }
@@ -116,6 +130,25 @@ export default function CrudPage({ title, resource, fields, columns, idKey = "id
                   <VariantsField
                     value={form[field.name]}
                     onChange={(next) => updateField(field.name, next)}
+                  />
+                ) : field.type === "purchase_items" ? (
+                  <PurchaseItemsField
+                    value={form[field.name]}
+                    onChange={(next) => updateField(field.name, next)}
+                  />
+                ) : field.type === "sales_order_items" ? (
+                  <SalesOrderItemsField
+                    value={form[field.name]}
+                    onChange={(next) => updateField(field.name, next)}
+                  />
+                ) : field.type === "date" ? (
+                  <input
+                    id={field.name}
+                    type="date"
+                    className="form-control"
+                    required={field.required}
+                    value={form[field.name] ? String(form[field.name]).slice(0, 10) : ""}
+                    onChange={(e) => updateField(field.name, e.target.value)}
                   />
                 ) : field.type === "select" ? (
                   <select
@@ -195,12 +228,16 @@ export default function CrudPage({ title, resource, fields, columns, idKey = "id
                   ))}
                   <td>
                     <div className="row-actions">
-                      <button className="btn btn-sm btn-outline dark" onClick={() => startEdit(item)}>
-                        Edit
-                      </button>
-                      <button className="btn btn-sm btn-danger" onClick={() => handleDelete(item)}>
-                        Delete
-                      </button>
+                      {(typeof allowEdit === "function" ? allowEdit(item) : allowEdit) && (
+                        <button className="btn btn-sm btn-outline dark" onClick={() => startEdit(item)}>
+                          Edit
+                        </button>
+                      )}
+                      {(typeof allowDelete === "function" ? allowDelete(item) : allowDelete) && (
+                        <button className="btn btn-sm btn-danger" onClick={() => handleDelete(item)}>
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

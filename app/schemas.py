@@ -492,6 +492,9 @@ class CustomerAdminDetailOut(BaseModel):
     created_at: Optional[datetime] = None
     total_orders: int = 0
     total_spent: float = 0
+    avg_order_value: float = 0
+    last_order_date: Optional[datetime] = None
+    status: str = "inactive"  # "active" | "inactive", see analytics segmentation thresholds
     orders: List[CustomerOrderOut] = []
 
 
@@ -503,3 +506,317 @@ class OrderAdminUpdateIn(BaseModel):
     payment_status: Optional[str] = None
     notes: Optional[str] = None
     remarks: str = ""
+
+
+# ---------- Purchases (procurement) ----------
+
+class PurchaseItemIn(BaseModel):
+    plant_id: int
+    quantity: int
+    unit_cost: float
+
+
+class PurchaseIn(BaseModel):
+    purchase_date: datetime
+    supplier: str = ""
+    invoice_number: str = ""
+    notes: str = ""
+    items: List[PurchaseItemIn]
+
+
+class PurchaseItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    plant_id: int
+    plant_name: str
+    quantity: int
+    unit_cost: float
+    total_cost: float
+
+
+class PurchaseOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    purchase_date: datetime
+    supplier: str
+    invoice_number: str
+    notes: str
+    total_cost: float
+    created_by: str
+    created_at: datetime
+    items: List[PurchaseItemOut] = []
+
+
+# ---------- Analytics ----------
+
+class KpiSummaryOut(BaseModel):
+    range_label: str
+    total_sales: float = 0
+    sales_change_pct: Optional[float] = None
+    total_orders: int = 0
+    orders_completed: int = 0
+    orders_pending: int = 0
+    orders_cancelled: int = 0
+    total_customers: int = 0
+    new_customers_this_period: int = 0
+    returning_customers: int = 0
+    plants_sold: int = 0
+    varieties_sold: int = 0
+    inventory_total: int = 0
+    inventory_low_stock: int = 0
+    inventory_out_of_stock: int = 0
+    total_purchase_cost: float = 0
+    gross_profit: Optional[float] = None
+    profit_margin_pct: Optional[float] = None
+    has_data: bool = False
+
+
+class SalesPointOut(BaseModel):
+    period: str
+    revenue: float = 0
+    orders: int = 0
+    plants_sold: int = 0
+
+
+class SalesSeriesOut(BaseModel):
+    granularity: str
+    points: List[SalesPointOut] = []
+    has_data: bool = False
+
+
+class CategorySalesOut(BaseModel):
+    category_id: int
+    category_name: str
+    plants_sold: int = 0
+    revenue: float = 0
+    orders: int = 0
+    pct_of_sales: float = 0
+
+
+class CategorySalesListOut(BaseModel):
+    categories: List[CategorySalesOut] = []
+    total_revenue: float = 0
+    total_plants_sold: int = 0
+    has_data: bool = False
+
+
+class PlantPerformanceOut(BaseModel):
+    id: int
+    name: str
+    slug: str
+    image_url: str
+    category_id: int
+    category_name: str
+    price: float
+    effective_price: float
+    stock_quantity: int
+    total_sold: int = 0
+    total_revenue: float = 0
+    order_count: int = 0
+    last_sold_at: Optional[datetime] = None
+    avg_purchase_cost: Optional[float] = None
+    total_purchased: int = 0
+    profit: Optional[float] = None
+    profit_pct: Optional[float] = None
+    performance_status: str = "No Sales"  # Best Seller | Growing | Average | Low Sales | No Sales
+
+
+class PlantPerformanceListOut(BaseModel):
+    items: List[PlantPerformanceOut] = []
+    total: int = 0
+    page: int = 1
+    pages: int = 1
+    has_data: bool = False
+
+
+class MonthPointOut(BaseModel):
+    month: int  # 1-12
+    label: str  # "January"
+    orders: int = 0
+    plants_sold: int = 0
+    revenue: float = 0
+    purchase_cost: float = 0
+    profit: Optional[float] = None
+
+
+class YearSummaryOut(BaseModel):
+    year: int
+    total_revenue: float = 0
+    total_orders: int = 0
+    total_plants_sold: int = 0
+    total_purchase_cost: float = 0
+    gross_profit: Optional[float] = None
+    new_customers: int = 0
+    avg_order_value: float = 0
+    has_data: bool = False
+
+
+class YearlyOut(BaseModel):
+    year: YearSummaryOut
+    months: List[MonthPointOut] = []
+    previous_year: Optional[YearSummaryOut] = None
+    growth_pct: Optional[float] = None
+
+
+class MonthlyOut(BaseModel):
+    year: int
+    month: int
+    summary: KpiSummaryOut
+    best_performing_month: Optional[MonthPointOut] = None
+
+
+class CustomerSegmentCountsOut(BaseModel):
+    vip: int = 0
+    regular: int = 0
+    new: int = 0
+    one_time: int = 0
+    inactive: int = 0
+
+
+class CustomerAnalyticsOut(BaseModel):
+    total_customers: int = 0
+    new_this_month: int = 0
+    new_this_week: int = 0
+    returning_customers: int = 0
+    one_time_customers: int = 0
+    repeat_customers: int = 0
+    retention_rate_pct: float = 0
+    avg_customer_order_value: float = 0
+    avg_orders_per_customer: float = 0
+    segments: CustomerSegmentCountsOut = CustomerSegmentCountsOut()
+    has_data: bool = False
+
+
+class CustomerSegmentItemOut(BaseModel):
+    id: int
+    name: str
+    email: str
+    mobile: str
+    total_spent: float = 0
+    order_count: int = 0
+    last_order_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+
+class CustomerSegmentListOut(BaseModel):
+    segment: str
+    items: List[CustomerSegmentItemOut] = []
+    total: int = 0
+    page: int = 1
+    pages: int = 1
+
+
+class RegistrationPointOut(BaseModel):
+    period: str
+    new_customers: int = 0
+
+
+class RegistrationsOut(BaseModel):
+    points: List[RegistrationPointOut] = []
+    total_new_this_period: int = 0
+    growth_pct: Optional[float] = None
+    has_data: bool = False
+
+
+class PurchaseByCategoryOut(BaseModel):
+    category_id: int
+    category_name: str
+    total_cost: float = 0
+
+
+class PurchaseByPlantOut(BaseModel):
+    plant_id: int
+    plant_name: str
+    quantity_purchased: int = 0
+    total_cost: float = 0
+    avg_unit_cost: float = 0
+
+
+class PurchaseMonthlyPointOut(BaseModel):
+    period: str
+    total_cost: float = 0
+
+
+class PurchaseAnalyticsOut(BaseModel):
+    total_purchase_cost: float = 0
+    total_plants_purchased: int = 0
+    purchase_orders_count: int = 0
+    by_category: List[PurchaseByCategoryOut] = []
+    by_plant: List[PurchaseByPlantOut] = []
+    monthly: List[PurchaseMonthlyPointOut] = []
+    has_data: bool = False
+
+
+class StockAlertItemOut(BaseModel):
+    id: int
+    name: str
+    category_name: str
+    stock_quantity: int
+
+
+class InventoryAnalyticsOut(BaseModel):
+    total_stock: int = 0
+    low_stock_count: int = 0
+    out_of_stock_count: int = 0
+    fast_moving_count: int = 0
+    slow_moving_count: int = 0
+    dead_stock_count: int = 0
+    low_stock_items: List[StockAlertItemOut] = []
+    out_of_stock_items: List[StockAlertItemOut] = []
+    has_data: bool = False
+
+
+class ProfitByCategoryOut(BaseModel):
+    category_id: int
+    category_name: str
+    revenue: float = 0
+    purchase_cost: Optional[float] = None
+    profit: Optional[float] = None
+    profit_pct: Optional[float] = None
+
+
+class ProfitByMonthOut(BaseModel):
+    period: str
+    revenue: float = 0
+    purchase_cost: Optional[float] = None
+    profit: Optional[float] = None
+
+
+class ProfitAnalyticsOut(BaseModel):
+    total_revenue: float = 0
+    total_purchase_cost: float = 0
+    gross_profit: Optional[float] = None
+    profit_margin_pct: Optional[float] = None
+    by_category: List[ProfitByCategoryOut] = []
+    by_month: List[ProfitByMonthOut] = []
+    has_data: bool = False
+
+
+class OrderStatusCountOut(BaseModel):
+    status: str
+    count: int = 0
+    revenue: float = 0
+
+
+class OrderStatusAnalyticsOut(BaseModel):
+    statuses: List[OrderStatusCountOut] = []
+    total_orders: int = 0
+    has_data: bool = False
+
+
+class TrendLeaderOut(BaseModel):
+    label: str
+    value: str
+    detail: str = ""
+
+
+class SalesTrendsOut(BaseModel):
+    best_selling_day: Optional[TrendLeaderOut] = None
+    highest_revenue_day: Optional[TrendLeaderOut] = None
+    best_selling_month: Optional[TrendLeaderOut] = None
+    highest_revenue_month: Optional[TrendLeaderOut] = None
+    best_selling_category: Optional[TrendLeaderOut] = None
+    best_selling_plant: Optional[TrendLeaderOut] = None
+    highest_spending_customer: Optional[TrendLeaderOut] = None
+    most_frequent_customer: Optional[TrendLeaderOut] = None
+    has_data: bool = False

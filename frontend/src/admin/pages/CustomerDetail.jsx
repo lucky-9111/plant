@@ -69,6 +69,24 @@ export default function CustomerDetail() {
               <div className="num">&#8377;{customer.total_spent}</div>
               <div className="label">Total Order Value</div>
             </div>
+            <div className="stat-card">
+              <div className="num">&#8377;{customer.avg_order_value}</div>
+              <div className="label">Avg Order Value</div>
+            </div>
+            <div className="stat-card">
+              <div className="num" style={{ fontSize: "1.1rem" }}>
+                {customer.last_order_date ? new Date(customer.last_order_date).toLocaleDateString() : "-"}
+              </div>
+              <div className="label">Last Order Date</div>
+            </div>
+            <div className="stat-card">
+              <div className="num">
+                <span className={`badge ${customer.status === "active" ? "badge-accent" : "badge-muted"}`}>
+                  {customer.status === "active" ? "Active" : "Inactive"}
+                </span>
+              </div>
+              <div className="label">Customer Status</div>
+            </div>
           </div>
 
           <h2 style={{ fontSize: "1.15rem" }}>Order History</h2>
@@ -123,6 +141,28 @@ export default function CustomerDetail() {
                 </tbody>
               </table>
             </div>
+          )}
+
+          <h2 style={{ fontSize: "1.15rem" }}>Purchase Timeline</h2>
+          {customer.orders.length === 0 ? (
+            <Empty>No orders placed yet.</Empty>
+          ) : (
+            <ul className="customer-timeline" style={{ marginBottom: 24 }}>
+              {customer.orders.map((o) => (
+                <li key={o.id} className="customer-timeline-item">
+                  <div className="customer-timeline-date">{new Date(o.created_at).toLocaleDateString()}</div>
+                  <div className="customer-timeline-body">
+                    <div>
+                      Ordered {o.items.map((i) => `${i.quantity}× ${i.plant_name}`).join(", ")}
+                    </div>
+                    <div className="customer-timeline-meta">
+                      &#8377;{o.total_amount} &middot;{" "}
+                      <span className={`badge ${statusBadgeClass(o.status)}`}>{o.status}</span>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
 
           <h2 style={{ fontSize: "1.15rem" }}>Cart, Wishlist &amp; Addresses</h2>
