@@ -38,6 +38,8 @@ SOURCES = ["online", "offline"]
 SALES_ORDER_STATUSES = ["Draft", "Confirmed", "Invoiced", "Cancelled", "Voided"]
 INVOICE_STATUSES = ["Draft", "Sent", "PartiallyPaid", "Paid", "Overdue", "Cancelled", "Voided"]
 PAYMENT_METHODS = ["Cash", "Bank", "UPI", "Card", "Online", "Other"]
+PURCHASE_ORDER_STATUSES = ["Draft", "Confirmed", "Billed", "Cancelled", "Voided"]
+EXPENSE_STATUSES = ["Unpaid", "PartiallyPaid", "Paid", "Voided"]
 
 
 class Account(Base):
@@ -198,6 +200,133 @@ class PaymentIn(Base):
 
     invoice = relationship("Invoice", back_populates="payments")
     contact = relationship("Contact")
+
+
+class PurchaseOrder(Base):
+    """Supplier-side mirror of SalesOrder. Purchase Orders always originate
+    offline -- there is no website concept of a supplier placing an order --
+    so, unlike SalesOrder, this table has no online-sync hook anywhere."""
+
+    __tablename__ = "accounting_purchase_orders"
+    __table_args__ = (UniqueConstraint("source", "source_id", name="uq_purchaseorder_source"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    contact_id = Column(Integer, ForeignKey("accounting_contacts.id"), nullable=False, index=True)
+    order_number = Column(String(40), default="")
+    status = Column(String(20), nullable=False, default="Draft", index=True)
+    order_date = Column(DateTime, default=datetime.utcnow, index=True)
+    subtotal = Column(Float, default=0)
+    tax_total = Column(Float, default=0)
+    total_amount = Column(Float, default=0)
+    notes = Column(Text, default="")
+    source = Column(String(10), nullable=False, default="offline", index=True)
+    source_id = Column(String(40), nullable=True)
+    created_by = Column(String(80), default="")
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    contact = relationship("Contact")
+    items = relationship(
+        "PurchaseOrderItem", back_populates="purchase_order", cascade="all, delete-orphan"
+    )
+
+
+class PurchaseOrderItem(Base):
+    """plant_id is required (unlike SalesOrderItem's optional one) because
+    converting a Purchase Order to a Bill re-uses the existing Purchase/
+    PurchaseItem machinery, whose PurchaseItem.plant_id is itself required --
+    a Purchase Order line always represents stock actually being procured."""
+
+    __tablename__ = "accounting_purchase_order_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    purchase_order_id = Column(
+        Integer, ForeignKey("accounting_purchase_orders.id"), nullable=False, index=True
+    )
+    plant_id = Column(Integer, ForeignKey("plants.id"), nullable=False)
+    description = Column(String(200), default="")  # snapshot of plant name at write time
+    quantity = Column(Integer, default=1)
+    unit_price = Column(Float, default=0)  # unit cost
+    tax_rate_id = Column(Integer, ForeignKey("accounting_tax_rates.id"), nullable=True)
+    tax_amount = Column(Float, default=0)
+    line_total = Column(Float, default=0)
+
+    purchase_order = relationship("PurchaseOrder", back_populates="items")
+    plant = relationship("Plant")
+
+
+class Expense(Base):
+    """A standalone spend not tied to any Purchase Order/Bill (rent,
+    utilities, salaries, ...). Always offline -- no website equivalent."""
+
+    __tablename__ = "accounting_expenses"
+    __table_args__ = (UniqueConstraint("source", "source_id", name="uq_expense_source"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    category = Column(String(80), nullable=False, default="")
+    account_id = Column(Integer, ForeignKey("accounting_accounts.id"), nullable=True, index=True)
+    contact_id = Column(Integer, ForeignKey("accounting_contacts.id"), nullable=True, index=True)
+    description = Column(String(200), default="")
+    expense_date = Column(DateTime, default=datetime.utcnow, index=True)
+    amount = Column(Float, nullable=False, default=0)
+    tax_amount = Column(Float, default=0)
+    total_amount = Column(Float, default=0)
+    amount_paid = Column(Float, default=0)
+    balance_due = Column(Float, default=0)
+    status = Column(String(20), nullable=False, default="Unpaid", index=True)
+    reference = Column(String(120), default="")
+    notes = Column(Text, default="")
+    source = Column(String(10), nullable=False, default="offline", index=True)
+    source_id = Column(String(40), nullable=True)
+    created_by = Column(String(80), default="")
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    account = relationship("Account")
+    contact = relationship("Contact")
+    payments = relationship("PaymentOut", back_populates="expense")
+
+
+class PaymentOut(Base):
+    """Pays down either a Bill (existing Purchase table, via purchase_id) or
+    an Expense (via expense_id) -- exactly one of the two is set, enforced at
+    the router level since SQLite has no portable partial-CHECK for this."""
+
+    __tablename__ = "accounting_payments_out"
+    __table_args__ = (UniqueConstraint("source", "source_id", name="uq_paymentout_source"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    purchase_id = Column(Integer, ForeignKey("purchases.id"), nullable=True, index=True)
+    expense_id = Column(Integer, ForeignKey("accounting_expenses.id"), nullable=True, index=True)
+    contact_id = Column(Integer, ForeignKey("accounting_contacts.id"), nullable=True, index=True)
+    amount = Column(Float, nullable=False, default=0)
+    method = Column(String(20), nullable=False, default="Cash")
+    payment_date = Column(DateTime, default=datetime.utcnow, index=True)
+    reference = Column(String(120), default="")
+    notes = Column(Text, default="")
+    source = Column(String(10), nullable=False, default="offline", index=True)
+    source_id = Column(String(60), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    purchase = relationship("Purchase")  # one-directional; Purchase itself is untouched
+    expense = relationship("Expense", back_populates="payments")
+    contact = relationship("Contact")
+
+
+class Employee(Base):
+    """A directory entity for Phase 2 -- payroll/attendance processing is out
+    of scope; this is deliberately just a reference record."""
+
+    __tablename__ = "accounting_employees"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(150), nullable=False)
+    role = Column(String(100), default="")
+    email = Column(String(180), default="")
+    phone = Column(String(30), default="")
+    salary = Column(Float, default=0)
+    joining_date = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True)
+    notes = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class AuditLog(Base):

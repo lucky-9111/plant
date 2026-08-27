@@ -14,6 +14,7 @@ from app.accounting.models import (
     SalesOrder,
     SalesOrderItem,
 )
+from app.accounting.permissions import SALES_WRITE_ROLES, require_roles
 from app.accounting.schemas import (
     InvoiceConvertIn,
     InvoiceOut,
@@ -34,6 +35,7 @@ router = APIRouter(tags=["accounting-sales"])
 def list_sales_orders(
     source: Optional[str] = Query(None, description="online|offline"),
     status: Optional[str] = Query(None),
+    q: Optional[str] = Query(None, description="Search by order # or contact name"),
     admin: str = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
@@ -44,6 +46,11 @@ def list_sales_orders(
         query = query.filter(SalesOrder.source == source)
     if status:
         query = query.filter(SalesOrder.status == status)
+    if q:
+        like = f"%{q}%"
+        query = query.join(Contact, Contact.id == SalesOrder.contact_id).filter(
+            SalesOrder.order_number.ilike(like) | Contact.name.ilike(like)
+        )
     return query.order_by(SalesOrder.order_date.desc()).all()
 
 
@@ -64,7 +71,10 @@ def get_sales_order(
 
 @router.post("/sales-orders", response_model=SalesOrderOut, status_code=201)
 def create_sales_order(
-    payload: SalesOrderIn, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
+    payload: SalesOrderIn,
+    admin: str = Depends(get_current_admin),
+    _role: str = Depends(require_roles(*SALES_WRITE_ROLES)),
+    db: Session = Depends(get_db),
 ):
     if not payload.items:
         raise HTTPException(status_code=400, detail="At least one line item is required")
@@ -117,6 +127,7 @@ def convert_to_invoice(
     item_id: int,
     payload: InvoiceConvertIn,
     admin: str = Depends(get_current_admin),
+    _role: str = Depends(require_roles(*SALES_WRITE_ROLES)),
     db: Session = Depends(get_db),
 ):
     """Converts an (offline) Sales Order into an Invoice. The original Sales
@@ -189,6 +200,7 @@ def convert_to_invoice(
 def list_invoices(
     source: Optional[str] = Query(None, description="online|offline"),
     status: Optional[str] = Query(None),
+    q: Optional[str] = Query(None, description="Search by invoice # or contact name"),
     admin: str = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
@@ -199,6 +211,11 @@ def list_invoices(
         query = query.filter(Invoice.source == source)
     if status:
         query = query.filter(Invoice.status == status)
+    if q:
+        like = f"%{q}%"
+        query = query.join(Contact, Contact.id == Invoice.contact_id).filter(
+            Invoice.invoice_number.ilike(like) | Contact.name.ilike(like)
+        )
     return query.order_by(Invoice.invoice_date.desc()).all()
 
 
@@ -219,7 +236,10 @@ def get_invoice(
 
 @router.post("/invoices/{item_id}/void", response_model=InvoiceOut)
 def void_invoice(
-    item_id: int, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
+    item_id: int,
+    admin: str = Depends(get_current_admin),
+    _role: str = Depends(require_roles(*SALES_WRITE_ROLES)),
+    db: Session = Depends(get_db),
 ):
     """Never a hard delete -- financial documents are Voided, not removed."""
     item = db.query(Invoice).filter(Invoice.id == item_id).first()
@@ -262,7 +282,10 @@ def list_payments_in(
 
 @router.post("/payments-in", response_model=PaymentInOut, status_code=201)
 def create_payment_in(
-    payload: PaymentInIn, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
+    payload: PaymentInIn,
+    admin: str = Depends(get_current_admin),
+    _role: str = Depends(require_roles(*SALES_WRITE_ROLES)),
+    db: Session = Depends(get_db),
 ):
     invoice = db.query(Invoice).filter(Invoice.id == payload.invoice_id).first()
     if not invoice:

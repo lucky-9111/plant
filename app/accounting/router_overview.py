@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
-from app.accounting.models import Contact, Invoice
+from app.accounting.models import Contact, Expense, Invoice
 from app.accounting.schemas import AccountingOverviewOut
 from app.analytics_utils import RANGE_LABELS, money, resolve_date_range
 from app.database import get_db
@@ -61,15 +61,31 @@ def get_overview(
         .filter(Invoice.status.notin_(["Voided", "Cancelled"]))
         .scalar()
     )
-    payables = money(
+    payables_bills = money(
         db.query(func.coalesce(func.sum(Purchase.total_cost), 0))
         .filter(Purchase.status.notin_(["Paid"]))
         .scalar()
     )
+    payables_expenses = money(
+        db.query(func.coalesce(func.sum(Expense.balance_due), 0))
+        .filter(Expense.status.notin_(["Paid", "Voided"]))
+        .scalar()
+    )
+    payables = money(payables_bills + payables_expenses)
+
+    total_expenses = money(
+        db.query(func.coalesce(func.sum(Expense.total_amount), 0))
+        .filter(Expense.expense_date >= start, Expense.expense_date < end, Expense.status != "Voided")
+        .scalar()
+    )
 
     any_purchase_ever = (db.query(func.count(Purchase.id)).scalar() or 0) > 0
-    total_expenses = 0.0  # Expenses land in Phase 2 -- always 0 (real, not fabricated) until then
-    net_profit = money(total_sales - total_purchases - total_expenses) if any_purchase_ever else None
+    any_expense_ever = (db.query(func.count(Expense.id)).scalar() or 0) > 0
+    net_profit = (
+        money(total_sales - total_purchases - total_expenses)
+        if (any_purchase_ever or any_expense_ever)
+        else None
+    )
 
     pending_invoices = (
         db.query(func.count(Invoice.id))
@@ -88,7 +104,7 @@ def get_overview(
         or 0
     )
 
-    has_data = total_sales > 0 or total_purchases > 0
+    has_data = total_sales > 0 or total_purchases > 0 or total_expenses > 0
 
     return AccountingOverviewOut(
         range_label=RANGE_LABELS.get(range_key, range_key),

@@ -54,6 +54,15 @@ import AccountingInvoiceDetail from "./admin/pages/accounting/InvoiceDetail";
 import AccountingContacts from "./admin/pages/accounting/Contacts";
 import AccountingChartOfAccounts from "./admin/pages/accounting/ChartOfAccounts";
 import AccountingTaxRates from "./admin/pages/accounting/TaxRates";
+import AccountingPurchaseOrders from "./admin/pages/accounting/PurchaseOrders";
+import AccountingPurchaseOrderDetail from "./admin/pages/accounting/PurchaseOrderDetail";
+import AccountingBills from "./admin/pages/accounting/Bills";
+import AccountingBillDetail from "./admin/pages/accounting/BillDetail";
+import AccountingExpenses from "./admin/pages/accounting/Expenses";
+import AccountingExpenseDetail from "./admin/pages/accounting/ExpenseDetail";
+import AccountingEmployees from "./admin/pages/accounting/Employees";
+import AccountingReports from "./admin/pages/accounting/Reports";
+import AccountingRoles from "./admin/pages/accounting/Roles";
 export default function App() {
   const location = useLocation();
   // When navigation to /login carries a backgroundLocation (set by the Navbar's
@@ -123,6 +132,15 @@ export default function App() {
           <Route path="accounting/contacts" element={<AccountingContacts />} />
           <Route path="accounting/chart-of-accounts" element={<AccountingChartOfAccounts />} />
           <Route path="accounting/tax-rates" element={<AccountingTaxRates />} />
+          <Route path="accounting/purchase-orders" element={<AccountingPurchaseOrders />} />
+          <Route path="accounting/purchase-orders/:id" element={<AccountingPurchaseOrderDetail />} />
+          <Route path="accounting/bills" element={<AccountingBills />} />
+          <Route path="accounting/bills/:id" element={<AccountingBillDetail />} />
+          <Route path="accounting/expenses" element={<AccountingExpenses />} />
+          <Route path="accounting/expenses/:id" element={<AccountingExpenseDetail />} />
+          <Route path="accounting/employees" element={<AccountingEmployees />} />
+          <Route path="accounting/reports" element={<AccountingReports />} />
+          <Route path="accounting/roles" element={<AccountingRoles />} />
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>

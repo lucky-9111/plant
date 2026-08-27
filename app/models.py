@@ -209,6 +209,10 @@ class AdminUser(Base):
     hashed_password = Column(String(200), nullable=False)
     role = Column(String(20), nullable=False, default="admin")
     created_at = Column(DateTime, default=datetime.utcnow)
+    # Accounting module (Phase 4): a separate permission axis from `role`
+    # above (which only governs Website Management / developer access).
+    # NULL means "not yet assigned" -- treated as Viewer everywhere it's read.
+    accounting_role = Column(String(20), nullable=True)
 
 
 class AdminActivityLog(Base):
@@ -402,6 +406,10 @@ class Purchase(Base):
     due_date = Column(DateTime, nullable=True)
     source = Column(String(10), nullable=False, default="offline", index=True)
     contact_id = Column(Integer, nullable=True, index=True)
+    # Phase 2: set when this Purchase/Bill was created by converting an
+    # accounting Purchase Order -- plain Integer (no FK object), same
+    # precedent as contact_id above.
+    purchase_order_id = Column(Integer, nullable=True, index=True)
 
     items = relationship("PurchaseItem", back_populates="purchase", cascade="all, delete-orphan")
 

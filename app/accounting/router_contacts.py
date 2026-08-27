@@ -5,10 +5,12 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.accounting.audit import record_change
-from app.accounting.models import Contact, Invoice, PaymentIn
+from app.accounting.models import Contact, Invoice, PaymentIn, PaymentOut, PurchaseOrder, SalesOrder
+from app.accounting.permissions import CONTACT_WRITE_ROLES, require_roles
 from app.accounting.schemas import ContactIn, ContactOut
 from app.database import get_db
 from app.deps import get_current_admin
+from app.models import Purchase
 
 router = APIRouter(prefix="/contacts", tags=["accounting-contacts"])
 
@@ -33,10 +35,26 @@ def _with_summary(db: Session, contact: Contact) -> ContactOut:
         .scalar()
         or 0
     )
+    total_purchases = (
+        db.query(func.coalesce(func.sum(Purchase.total_cost), 0))
+        .filter(Purchase.contact_id == contact.id)
+        .scalar()
+        or 0
+    )
+    total_paid_out = (
+        db.query(func.coalesce(func.sum(PaymentOut.amount), 0))
+        .filter(PaymentOut.contact_id == contact.id)
+        .scalar()
+        or 0
+    )
+
     out = ContactOut.model_validate(contact)
     out.total_sales = round(total_sales, 2)
     out.total_paid = round(total_paid, 2)
     out.outstanding = round(total_sales - total_paid, 2)
+    out.total_purchases = round(total_purchases, 2)
+    out.total_paid_out = round(total_paid_out, 2)
+    out.payable = round(total_purchases - total_paid_out, 2)
     return out
 
 
@@ -44,6 +62,7 @@ def _with_summary(db: Session, contact: Contact) -> ContactOut:
 def list_contacts(
     source: Optional[str] = Query(None, description="online|offline"),
     contact_type: Optional[str] = Query(None, description="customer|supplier|both"),
+    q: Optional[str] = Query(None, description="Search by name, email, or phone"),
     admin: str = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
@@ -52,6 +71,9 @@ def list_contacts(
         query = query.filter(Contact.source == source)
     if contact_type:
         query = query.filter(Contact.contact_type == contact_type)
+    if q:
+        like = f"%{q}%"
+        query = query.filter(Contact.name.ilike(like) | Contact.email.ilike(like) | Contact.phone.ilike(like))
     contacts = query.order_by(Contact.name).all()
     return [_with_summary(db, c) for c in contacts]
 
@@ -65,7 +87,10 @@ def get_contact(
 
 @router.post("", response_model=ContactOut, status_code=201)
 def create_contact(
-    payload: ContactIn, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
+    payload: ContactIn,
+    admin: str = Depends(get_current_admin),
+    _role: str = Depends(require_roles(*CONTACT_WRITE_ROLES)),
+    db: Session = Depends(get_db),
 ):
     item = Contact(**payload.model_dump(), source="offline")
     db.add(item)
@@ -81,6 +106,7 @@ def update_contact(
     item_id: int,
     payload: ContactIn,
     admin: str = Depends(get_current_admin),
+    _role: str = Depends(require_roles(*CONTACT_WRITE_ROLES)),
     db: Session = Depends(get_db),
 ):
     item = _get_or_404(db, item_id)
@@ -105,7 +131,10 @@ def update_contact(
 
 @router.delete("/{item_id}", status_code=204)
 def delete_contact(
-    item_id: int, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
+    item_id: int,
+    admin: str = Depends(get_current_admin),
+    _role: str = Depends(require_roles(*CONTACT_WRITE_ROLES)),
+    db: Session = Depends(get_db),
 ):
     item = _get_or_404(db, item_id)
     if item.source == "online":
@@ -116,10 +145,15 @@ def delete_contact(
     has_docs = (
         db.query(Invoice).filter(Invoice.contact_id == item.id).first()
         or db.query(PaymentIn).filter(PaymentIn.contact_id == item.id).first()
+        or db.query(Purchase).filter(Purchase.contact_id == item.id).first()
+        or db.query(PaymentOut).filter(PaymentOut.contact_id == item.id).first()
+        or db.query(PurchaseOrder).filter(PurchaseOrder.contact_id == item.id).first()
+        or db.query(SalesOrder).filter(SalesOrder.contact_id == item.id).first()
     )
     if has_docs:
         raise HTTPException(
-            status_code=400, detail="Cannot delete a contact with existing invoices or payments."
+            status_code=400,
+            detail="Cannot delete a contact with existing sales/purchase orders, invoices, bills, or payments.",
         )
     db.delete(item)
     db.commit()

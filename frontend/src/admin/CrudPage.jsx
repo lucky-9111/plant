@@ -4,6 +4,8 @@ import { Loading, Empty } from "../components/Loading";
 import VariantsField from "./VariantsField";
 import PurchaseItemsField from "./PurchaseItemsField";
 import SalesOrderItemsField from "./accounting/SalesOrderItemsField";
+import SearchBox from "./accounting/SearchBox";
+import ExportButton from "./accounting/ExportButton";
 
 const emptyValue = (field) => {
   if (field.type === "checkbox") return field.default ?? false;
@@ -28,6 +30,9 @@ export default function CrudPage({
   allowEdit = true,
   allowDelete = true,
   deleteConfirmMessage,
+  exportUrl,
+  searchable = false,
+  searchPlaceholder = "Search...",
 }) {
   const [items, setItems] = useState(null);
   const [mode, setMode] = useState("list"); // list | form
@@ -35,13 +40,15 @@ export default function CrudPage({
   const [form, setForm] = useState(() => blankForm(fields));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [q, setQ] = useState("");
 
   function load() {
     setItems(null);
-    api.get(resource).then(setItems);
+    const query = searchable && q ? `?q=${encodeURIComponent(q)}` : "";
+    api.get(`${resource}${query}`).then(setItems);
   }
 
-  useEffect(load, [resource]);
+  useEffect(load, [resource, q]);
 
   function startCreate() {
     setForm(blankForm(fields));
@@ -200,10 +207,19 @@ export default function CrudPage({
     <div>
       <div className="admin-page-head">
         <h1>{title}</h1>
-        <button className="btn btn-sm btn-primary" onClick={startCreate}>
-          + Add {title}
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          {exportUrl && <ExportButton baseUrl={exportUrl} />}
+          <button className="btn btn-sm btn-primary" onClick={startCreate}>
+            + Add {title}
+          </button>
+        </div>
       </div>
+
+      {searchable && (
+        <div style={{ marginBottom: 16 }}>
+          <SearchBox value={q} onChange={setQ} placeholder={searchPlaceholder} />
+        </div>
+      )}
 
       {!items ? (
         <Loading />

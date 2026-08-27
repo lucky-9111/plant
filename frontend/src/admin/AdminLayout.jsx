@@ -32,7 +32,13 @@ const ACCOUNTING_NAV = [
   { to: "/admin/accounting", label: "Overview", end: true },
   { to: "/admin/accounting/sales-orders", label: "Sales Orders" },
   { to: "/admin/accounting/invoices", label: "Invoices" },
+  { to: "/admin/accounting/purchase-orders", label: "Purchase Orders" },
+  { to: "/admin/accounting/bills", label: "Bills" },
+  { to: "/admin/accounting/expenses", label: "Expenses" },
   { to: "/admin/accounting/contacts", label: "Contacts" },
+  { to: "/admin/accounting/employees", label: "Employees" },
+  { to: "/admin/accounting/reports", label: "Reports" },
+  { to: "/admin/accounting/roles", label: "Roles" },
   { to: "/admin/accounting/chart-of-accounts", label: "Chart of Accounts" },
   { to: "/admin/accounting/tax-rates", label: "Tax Rates" },
 ];

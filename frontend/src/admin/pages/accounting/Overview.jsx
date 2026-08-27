@@ -46,6 +46,7 @@ export default function AccountingOverview() {
               sublabel={`₹${summary.online_sales.toLocaleString()} online · ₹${summary.offline_sales.toLocaleString()} offline`}
             />
             <KpiCard label="Total Purchases" value={`₹${summary.total_purchases.toLocaleString()}`} sublabel={summary.range_label} />
+            <KpiCard label="Total Expenses" value={`₹${summary.total_expenses.toLocaleString()}`} sublabel={summary.range_label} />
             <KpiCard label="Receivables" value={`₹${summary.receivables.toLocaleString()}`} sublabel="Open invoices, all time" />
             <KpiCard label="Payables" value={`₹${summary.payables.toLocaleString()}`} sublabel="Open bills, all time" />
             <KpiCard

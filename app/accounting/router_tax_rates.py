@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.accounting.audit import record_change
 from app.accounting.models import TaxRate
+from app.accounting.permissions import SETTINGS_WRITE_ROLES, require_roles
 from app.accounting.schemas import TaxRateIn, TaxRateOut
 from app.database import get_db
 from app.deps import get_current_admin
@@ -24,7 +25,10 @@ def list_tax_rates(admin: str = Depends(get_current_admin), db: Session = Depend
 
 @router.post("", response_model=TaxRateOut, status_code=201)
 def create_tax_rate(
-    payload: TaxRateIn, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
+    payload: TaxRateIn,
+    admin: str = Depends(get_current_admin),
+    _role: str = Depends(require_roles(*SETTINGS_WRITE_ROLES)),
+    db: Session = Depends(get_db),
 ):
     item = TaxRate(**payload.model_dump())
     db.add(item)
@@ -40,6 +44,7 @@ def update_tax_rate(
     item_id: int,
     payload: TaxRateIn,
     admin: str = Depends(get_current_admin),
+    _role: str = Depends(require_roles(*SETTINGS_WRITE_ROLES)),
     db: Session = Depends(get_db),
 ):
     item = _get_or_404(db, item_id)
@@ -59,7 +64,10 @@ def update_tax_rate(
 
 @router.delete("/{item_id}", status_code=204)
 def delete_tax_rate(
-    item_id: int, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
+    item_id: int,
+    admin: str = Depends(get_current_admin),
+    _role: str = Depends(require_roles(*SETTINGS_WRITE_ROLES)),
+    db: Session = Depends(get_db),
 ):
     item = _get_or_404(db, item_id)
     db.delete(item)

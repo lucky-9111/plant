@@ -21,8 +21,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 
 Base.metadata.create_all(bind=engine)
-seed_if_empty(SessionLocal)
 
+# Schema shims (ALTER TABLE for pre-existing tables) must run before
+# seed_if_empty -- seeding queries ORM models whose Python class already
+# declares newly-added columns, so the actual on-disk table must have them
+# first or SQLAlchemy raises "no such column" on a fresh migration.
 with engine.connect() as conn:
     existing_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(inquiries)"))}
     if "plant_id" not in existing_columns:
@@ -35,6 +38,13 @@ with engine.connect() as conn:
         conn.commit()
     if "created_at" not in admin_columns:
         conn.execute(text("ALTER TABLE admin_users ADD COLUMN created_at DATETIME"))
+        conn.commit()
+    if "accounting_role" not in admin_columns:
+        conn.execute(text("ALTER TABLE admin_users ADD COLUMN accounting_role VARCHAR(20)"))
+        # Backfill every admin that existed before Phase 4 to Owner so nobody
+        # who already had unrestricted Accounting access loses it -- only
+        # admins created after this point default to NULL (-> Viewer).
+        conn.execute(text("UPDATE admin_users SET accounting_role = 'Owner' WHERE accounting_role IS NULL"))
         conn.commit()
     conn.execute(text("UPDATE admin_users SET role = 'developer' WHERE username = 'lucky'"))
     conn.execute(text("UPDATE admin_users SET role = 'developer' WHERE username = 'admin'"))
@@ -110,6 +120,11 @@ with engine.connect() as conn:
     if "contact_id" not in purchase_columns:
         conn.execute(text("ALTER TABLE purchases ADD COLUMN contact_id INTEGER"))
         conn.commit()
+    if "purchase_order_id" not in purchase_columns:
+        conn.execute(text("ALTER TABLE purchases ADD COLUMN purchase_order_id INTEGER"))
+        conn.commit()
+
+seed_if_empty(SessionLocal)
 
 app = FastAPI(title="Aaiji Nursery")
 

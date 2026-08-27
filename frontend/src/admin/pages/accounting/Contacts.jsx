@@ -7,6 +7,9 @@ export default function Contacts() {
       title="Contact"
       resource="/admin/accounting/contacts"
       idKey="id"
+      exportUrl="/api/admin/accounting/export/contacts.xlsx"
+      searchable
+      searchPlaceholder="Search by name, email, or phone..."
       columns={[
         { key: "name", label: "Name" },
         { key: "contact_type", label: "Type" },
