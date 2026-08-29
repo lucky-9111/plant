@@ -3,6 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../../../api";
 import { Loading } from "../../../components/Loading";
 import { invoiceBadgeClass, salesOrderBadgeClass, sourceBadgeClass } from "../../accounting/accountingStatus";
+import AuditTrail from "../../accounting/AuditTrail";
+import { printWholePage } from "../../analytics/exportUtils";
 
 function todayDateInput() {
   return new Date().toISOString().slice(0, 10);
@@ -99,9 +101,22 @@ export default function InvoiceDetail() {
             </span>
           </span>
         </div>
-        <Link className="btn btn-sm btn-outline dark" to="/admin/accounting/invoices">
-          &larr; Back to Invoices
-        </Link>
+        <div className="no-print" style={{ display: "flex", gap: 8 }}>
+          <button type="button" className="btn btn-sm btn-outline dark" onClick={printWholePage}>
+            Print
+          </button>
+          <a
+            className="btn btn-sm btn-outline dark"
+            href={`/api/admin/accounting/invoices/${id}/pdf`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Download PDF
+          </a>
+          <Link className="btn btn-sm btn-outline dark" to="/admin/accounting/invoices">
+            &larr; Back to Invoices
+          </Link>
+        </div>
       </div>
 
       {error && <div className="alert alert-error" style={{ marginBottom: 16 }}>{error}</div>}
@@ -164,6 +179,8 @@ export default function InvoiceDetail() {
               </div>
             )}
           </div>
+
+          <AuditTrail tableName="accounting_invoices" recordId={invoice.id} />
         </div>
 
         <div>
@@ -174,7 +191,7 @@ export default function InvoiceDetail() {
             <p style={{ margin: 0, color: "var(--color-text-muted)" }}>{invoice.contact?.phone}</p>
           </div>
 
-          <div className="admin-form-card" style={{ maxWidth: "none", marginBottom: 20 }}>
+          <div className="admin-form-card no-print" style={{ maxWidth: "none", marginBottom: 20 }}>
             <h2 style={{ fontSize: "1.1rem", marginTop: 0 }}>Related Documents</h2>
             {invoice.sales_order && (
               <p>
@@ -198,7 +215,7 @@ export default function InvoiceDetail() {
           </div>
 
           {canRecordPayment && (
-            <div className="admin-form-card" style={{ maxWidth: "none", marginBottom: 20 }}>
+            <div className="admin-form-card no-print" style={{ maxWidth: "none", marginBottom: 20 }}>
               <button type="button" className="btn btn-primary btn-block" onClick={openPaymentModal}>
                 Record Payment
               </button>
@@ -206,7 +223,7 @@ export default function InvoiceDetail() {
           )}
 
           {canVoid && (
-            <div className="admin-form-card" style={{ maxWidth: "none" }}>
+            <div className="admin-form-card no-print" style={{ maxWidth: "none" }}>
               <button type="button" className="btn btn-danger btn-block" disabled={voiding} onClick={handleVoid}>
                 {voiding ? "Voiding..." : "Void Invoice"}
               </button>

@@ -43,6 +43,17 @@ const ACCOUNTING_NAV = [
   { to: "/admin/accounting/tax-rates", label: "Tax Rates" },
 ];
 
+const WORKFORCE_NAV = [
+  { to: "/admin/labour", label: "Dashboard", end: true },
+  { to: "/admin/labour/employees", label: "Employees" },
+  { to: "/admin/labour/labour", label: "Labour" },
+  { to: "/admin/labour/todays-work", label: "Today's Work" },
+  { to: "/admin/labour/attendance", label: "Attendance" },
+  { to: "/admin/labour/payroll", label: "Payroll" },
+  { to: "/admin/labour/payments", label: "Payments" },
+  { to: "/admin/labour/advances", label: "Advances" },
+];
+
 export default function AdminLayout() {
   const { username, role, logout } = useAuth();
 
@@ -66,6 +77,12 @@ export default function AdminLayout() {
           ))}
           <div className="admin-nav-heading">Accounting</div>
           {ACCOUNTING_NAV.map((item) => (
+            <NavLink key={item.to} to={item.to} end={item.end}>
+              {item.label}
+            </NavLink>
+          ))}
+          <div className="admin-nav-heading">Employees & Labour</div>
+          {WORKFORCE_NAV.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.end}>
               {item.label}
             </NavLink>

@@ -63,6 +63,16 @@ import AccountingExpenseDetail from "./admin/pages/accounting/ExpenseDetail";
 import AccountingEmployees from "./admin/pages/accounting/Employees";
 import AccountingReports from "./admin/pages/accounting/Reports";
 import AccountingRoles from "./admin/pages/accounting/Roles";
+import LabourDashboard from "./admin/pages/labour/Dashboard";
+import LabourEmployees from "./admin/pages/labour/Employees";
+import LabourEmployeeDetail from "./admin/pages/labour/EmployeeDetail";
+import LabourLabour from "./admin/pages/labour/Labour";
+import LabourLabourDetail from "./admin/pages/labour/LabourDetail";
+import LabourTodaysWork from "./admin/pages/labour/TodaysWork";
+import LabourAttendance from "./admin/pages/labour/Attendance";
+import LabourPayroll from "./admin/pages/labour/Payroll";
+import LabourPayments from "./admin/pages/labour/Payments";
+import LabourAdvances from "./admin/pages/labour/Advances";
 export default function App() {
   const location = useLocation();
   // When navigation to /login carries a backgroundLocation (set by the Navbar's
@@ -141,6 +151,16 @@ export default function App() {
           <Route path="accounting/employees" element={<AccountingEmployees />} />
           <Route path="accounting/reports" element={<AccountingReports />} />
           <Route path="accounting/roles" element={<AccountingRoles />} />
+          <Route path="labour" element={<LabourDashboard />} />
+          <Route path="labour/employees" element={<LabourEmployees />} />
+          <Route path="labour/employees/:id" element={<LabourEmployeeDetail />} />
+          <Route path="labour/labour" element={<LabourLabour />} />
+          <Route path="labour/labour/:id" element={<LabourLabourDetail />} />
+          <Route path="labour/todays-work" element={<LabourTodaysWork />} />
+          <Route path="labour/attendance" element={<LabourAttendance />} />
+          <Route path="labour/payroll" element={<LabourPayroll />} />
+          <Route path="labour/payments" element={<LabourPayments />} />
+          <Route path="labour/advances" element={<LabourAdvances />} />
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>

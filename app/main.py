@@ -13,6 +13,7 @@ from sqlalchemy import text
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.accounting.router import router as accounting_router
+from app.labour.router import router as labour_router
 from app.database import Base, SessionLocal, engine
 from app.routers import api_admin, api_admin_analytics, api_customer, api_public
 from app.seed_data import seed_if_empty
@@ -124,6 +125,27 @@ with engine.connect() as conn:
         conn.execute(text("ALTER TABLE purchases ADD COLUMN purchase_order_id INTEGER"))
         conn.commit()
 
+    # Employee & Labour module: extends the existing accounting_employees
+    # table (Phase 2's simple directory) with real HR/payroll fields. The
+    # existing simple CRUD page/router keep working unchanged -- they just
+    # never read or write these new columns.
+    employee_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(accounting_employees)"))}
+    if "department" not in employee_columns:
+        conn.execute(text("ALTER TABLE accounting_employees ADD COLUMN department VARCHAR(100) DEFAULT ''"))
+        conn.commit()
+    if "overtime_rate" not in employee_columns:
+        conn.execute(text("ALTER TABLE accounting_employees ADD COLUMN overtime_rate FLOAT DEFAULT 0"))
+        conn.commit()
+    if "status" not in employee_columns:
+        conn.execute(text("ALTER TABLE accounting_employees ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'Active'"))
+        conn.commit()
+    if "payment_method" not in employee_columns:
+        conn.execute(text("ALTER TABLE accounting_employees ADD COLUMN payment_method VARCHAR(20) DEFAULT 'Cash'"))
+        conn.commit()
+    if "bank_details" not in employee_columns:
+        conn.execute(text("ALTER TABLE accounting_employees ADD COLUMN bank_details TEXT DEFAULT ''"))
+        conn.commit()
+
 seed_if_empty(SessionLocal)
 
 app = FastAPI(title="Aaiji Nursery")
@@ -162,6 +184,7 @@ app.include_router(api_public.router)
 app.include_router(api_admin.router)
 app.include_router(api_admin_analytics.router)
 app.include_router(accounting_router)
+app.include_router(labour_router)
 app.include_router(api_customer.router)
 
 if FRONTEND_DIST.exists():

@@ -3,6 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../../../api";
 import { Loading } from "../../../components/Loading";
 import { billBadgeClass } from "../../accounting/accountingStatus";
+import AuditTrail from "../../accounting/AuditTrail";
+import { printWholePage } from "../../analytics/exportUtils";
 
 function todayDateInput() {
   return new Date().toISOString().slice(0, 10);
@@ -77,9 +79,22 @@ export default function BillDetail() {
           <h1 style={{ marginBottom: 4 }}>Bill {bill.invoice_number || `#${bill.id}`}</h1>
           <span className={`badge ${billBadgeClass(bill.status)}`}>{bill.status}</span>
         </div>
-        <Link className="btn btn-sm btn-outline dark" to="/admin/accounting/bills">
-          &larr; Back to Bills
-        </Link>
+        <div className="no-print" style={{ display: "flex", gap: 8 }}>
+          <button type="button" className="btn btn-sm btn-outline dark" onClick={printWholePage}>
+            Print
+          </button>
+          <a
+            className="btn btn-sm btn-outline dark"
+            href={`/api/admin/accounting/bills/${id}/pdf`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Download PDF
+          </a>
+          <Link className="btn btn-sm btn-outline dark" to="/admin/accounting/bills">
+            &larr; Back to Bills
+          </Link>
+        </div>
       </div>
 
       {error && <div className="alert alert-error" style={{ marginBottom: 16 }}>{error}</div>}
@@ -133,6 +148,8 @@ export default function BillDetail() {
               </div>
             )}
           </div>
+
+          <AuditTrail tableName="purchases" recordId={bill.id} />
         </div>
 
         <div>
@@ -148,7 +165,7 @@ export default function BillDetail() {
           </div>
 
           {bill.purchase_order_id && (
-            <div className="admin-form-card" style={{ maxWidth: "none", marginBottom: 20 }}>
+            <div className="admin-form-card no-print" style={{ maxWidth: "none", marginBottom: 20 }}>
               <h2 style={{ fontSize: "1.1rem", marginTop: 0 }}>Related Documents</h2>
               <Link
                 className="btn btn-sm btn-outline dark"
@@ -160,7 +177,7 @@ export default function BillDetail() {
           )}
 
           {canRecordPayment && (
-            <div className="admin-form-card" style={{ maxWidth: "none" }}>
+            <div className="admin-form-card no-print" style={{ maxWidth: "none" }}>
               <button type="button" className="btn btn-primary btn-block" onClick={openPaymentModal}>
                 Record Payment
               </button>

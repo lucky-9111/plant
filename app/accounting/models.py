@@ -312,21 +312,35 @@ class PaymentOut(Base):
 
 
 class Employee(Base):
-    """A directory entity for Phase 2 -- payroll/attendance processing is out
-    of scope; this is deliberately just a reference record."""
+    """Originally a Phase 2 directory-only entity; the Employee & Labour
+    module (app/labour/) extends it in place (additive columns via an
+    ALTER TABLE shim in app/main.py) with real HR/payroll fields, rather
+    than duplicating a second "employee" table -- the existing simple
+    CRUD page (app/accounting/router_employees.py, Accounting > Employees)
+    keeps working completely unchanged since it only reads/writes the
+    original columns."""
 
     __tablename__ = "accounting_employees"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(150), nullable=False)
-    role = Column(String(100), default="")
+    role = Column(String(100), default="")  # doubles as "Designation"
     email = Column(String(180), default="")
     phone = Column(String(30), default="")
-    salary = Column(Float, default=0)
+    salary = Column(Float, default=0)  # monthly salary
     joining_date = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
     notes = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Added for the Employee & Labour module (app/labour/) -- backfilled via
+    # an ALTER TABLE shim in app/main.py, same pattern as every other schema
+    # change there.
+    department = Column(String(100), default="")
+    overtime_rate = Column(Float, default=0)  # per hour
+    status = Column(String(20), nullable=False, default="Active")
+    payment_method = Column(String(20), default="Cash")
+    bank_details = Column(Text, default="")
 
 
 class AuditLog(Base):

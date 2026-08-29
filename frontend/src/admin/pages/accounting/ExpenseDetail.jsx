@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../../../api";
 import { Loading } from "../../../components/Loading";
 import { expenseBadgeClass } from "../../accounting/accountingStatus";
+import AuditTrail from "../../accounting/AuditTrail";
 
 function todayDateInput() {
   return new Date().toISOString().slice(0, 10);
@@ -168,6 +169,8 @@ export default function ExpenseDetail() {
               </div>
             )}
           </div>
+
+          <AuditTrail tableName="accounting_expenses" recordId={expense.id} />
         </div>
 
         <div>

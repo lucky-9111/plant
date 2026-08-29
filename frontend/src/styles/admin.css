@@ -825,7 +825,8 @@ table.admin-table .row-actions {
   .analytics-jump-nav,
   .analytics-header-actions,
   .analytics-export-menu,
-  .row-actions {
+  .row-actions,
+  .no-print {
     display: none !important;
   }
   .admin-content {

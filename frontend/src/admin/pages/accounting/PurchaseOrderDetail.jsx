@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../../../api";
 import { Loading } from "../../../components/Loading";
 import { purchaseOrderBadgeClass, billBadgeClass } from "../../accounting/accountingStatus";
+import AuditTrail from "../../accounting/AuditTrail";
 
 export default function PurchaseOrderDetail() {
   const { id } = useParams();
@@ -85,6 +86,8 @@ export default function PurchaseOrderDetail() {
               <p style={{ margin: 0 }}>{order.notes}</p>
             </div>
           )}
+
+          <AuditTrail tableName="accounting_purchase_orders" recordId={order.id} />
         </div>
 
         <div>
