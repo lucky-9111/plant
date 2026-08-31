@@ -424,6 +424,8 @@ table.admin-table .row-actions {
   padding: 28px;
   width: 100%;
   max-width: 420px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
   box-shadow: var(--shadow-lg);
   position: relative;
 }

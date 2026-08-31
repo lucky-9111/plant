@@ -81,11 +81,19 @@ export default function CrudPage({
     e.preventDefault();
     setSaving(true);
     setError("");
+    // An empty optional date input submits "" -- send null instead so
+    // Optional[datetime] fields on the backend don't reject it as invalid.
+    const payload = { ...form };
+    fields.forEach((f) => {
+      if (f.type === "date" && payload[f.name] === "") {
+        payload[f.name] = null;
+      }
+    });
     try {
       if (editingId) {
-        await api.put(`${resource}/${editingId}`, form);
+        await api.put(`${resource}/${editingId}`, payload);
       } else {
-        await api.post(resource, form);
+        await api.post(resource, payload);
       }
       setMode("list");
       load();

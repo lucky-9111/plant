@@ -74,6 +74,15 @@ import LabourAttendance from "./admin/pages/labour/Attendance";
 import LabourPayroll from "./admin/pages/labour/Payroll";
 import LabourPayments from "./admin/pages/labour/Payments";
 import LabourAdvances from "./admin/pages/labour/Advances";
+import DeliveryDashboard from "./admin/pages/delivery/Dashboard";
+import DeliveryDeliveries from "./admin/pages/delivery/Deliveries";
+import DeliveryCreate from "./admin/pages/delivery/DeliveryCreate";
+import DeliveryDetail from "./admin/pages/delivery/DeliveryDetail";
+import DeliveryDrivers from "./admin/pages/delivery/Drivers";
+import DeliveryVehicles from "./admin/pages/delivery/Vehicles";
+import DeliveryVehicleDetail from "./admin/pages/delivery/VehicleDetail";
+import DeliveryTrips from "./admin/pages/delivery/Trips";
+import DeliveryFuel from "./admin/pages/delivery/Fuel";
 export default function App() {
   const location = useLocation();
   // When navigation to /login carries a backgroundLocation (set by the Navbar's
@@ -163,6 +172,15 @@ export default function App() {
           <Route path="labour/payroll" element={<LabourPayroll />} />
           <Route path="labour/payments" element={<LabourPayments />} />
           <Route path="labour/advances" element={<LabourAdvances />} />
+          <Route path="delivery" element={<DeliveryDashboard />} />
+          <Route path="delivery/deliveries" element={<DeliveryDeliveries />} />
+          <Route path="delivery/deliveries/new" element={<DeliveryCreate />} />
+          <Route path="delivery/deliveries/:id" element={<DeliveryDetail />} />
+          <Route path="delivery/drivers" element={<DeliveryDrivers />} />
+          <Route path="delivery/vehicles" element={<DeliveryVehicles />} />
+          <Route path="delivery/vehicles/:id" element={<DeliveryVehicleDetail />} />
+          <Route path="delivery/trips" element={<DeliveryTrips />} />
+          <Route path="delivery/fuel" element={<DeliveryFuel />} />
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>

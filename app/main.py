@@ -13,6 +13,7 @@ from sqlalchemy import text
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.accounting.router import router as accounting_router
+from app.delivery.router import router as delivery_router
 from app.labour.router import router as labour_router
 from app.database import Base, SessionLocal, engine
 from app.routers import api_admin, api_admin_analytics, api_customer, api_public
@@ -185,6 +186,7 @@ app.include_router(api_admin.router)
 app.include_router(api_admin_analytics.router)
 app.include_router(accounting_router)
 app.include_router(labour_router)
+app.include_router(delivery_router)
 app.include_router(api_customer.router)
 
 if FRONTEND_DIST.exists():

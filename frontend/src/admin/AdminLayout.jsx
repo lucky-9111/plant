@@ -54,6 +54,15 @@ const WORKFORCE_NAV = [
   { to: "/admin/labour/advances", label: "Advances" },
 ];
 
+const DELIVERY_NAV = [
+  { to: "/admin/delivery", label: "Dashboard", end: true },
+  { to: "/admin/delivery/deliveries", label: "Delivery History" },
+  { to: "/admin/delivery/drivers", label: "Drivers" },
+  { to: "/admin/delivery/vehicles", label: "Vehicles" },
+  { to: "/admin/delivery/trips", label: "Trips" },
+  { to: "/admin/delivery/fuel", label: "Fuel / Petrol" },
+];
+
 export default function AdminLayout() {
   const { username, role, logout } = useAuth();
 
@@ -83,6 +92,12 @@ export default function AdminLayout() {
           ))}
           <div className="admin-nav-heading">Employees & Labour</div>
           {WORKFORCE_NAV.map((item) => (
+            <NavLink key={item.to} to={item.to} end={item.end}>
+              {item.label}
+            </NavLink>
+          ))}
+          <div className="admin-nav-heading">Delivery Management</div>
+          {DELIVERY_NAV.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.end}>
               {item.label}
             </NavLink>
