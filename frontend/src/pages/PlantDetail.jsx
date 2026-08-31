@@ -27,7 +27,7 @@ export default function PlantDetail() {
       .get(`/plants/${slug}`)
       .then(setPlant)
       .catch(() => setNotFound(true));
-    api.get(`/plants/${slug}/related`).then(setRelated).catch(() => setRelated([]));
+    api.get(`/plants/${slug}/recommendations`).then(setRelated).catch(() => setRelated([]));
   }, [slug]);
 
   if (notFound) {

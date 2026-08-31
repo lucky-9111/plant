@@ -33,6 +33,7 @@ def _with_summary(db: Session, bill: Purchase) -> BillOut:
 @router.get("", response_model=list[BillOut])
 def list_bills(
     status: Optional[str] = Query(None),
+    contact_id: Optional[int] = Query(None),
     q: Optional[str] = Query(None, description="Search by bill #, supplier name/text"),
     admin: str = Depends(get_current_admin),
     db: Session = Depends(get_db),
@@ -40,6 +41,8 @@ def list_bills(
     query = db.query(Purchase).options(joinedload(Purchase.items))
     if status:
         query = query.filter(Purchase.status == status)
+    if contact_id:
+        query = query.filter(Purchase.contact_id == contact_id)
     if q:
         like = f"%{q}%"
         query = query.filter(Purchase.invoice_number.ilike(like) | Purchase.supplier.ilike(like))

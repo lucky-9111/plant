@@ -5,7 +5,15 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.accounting.audit import record_change
-from app.accounting.models import Contact, Invoice, PaymentIn, PaymentOut, PurchaseOrder, SalesOrder
+from app.accounting.models import (
+    Contact,
+    Expense,
+    Invoice,
+    PaymentIn,
+    PaymentOut,
+    PurchaseOrder,
+    SalesOrder,
+)
 from app.accounting.permissions import CONTACT_WRITE_ROLES, require_roles
 from app.accounting.schemas import ContactIn, ContactOut
 from app.database import get_db
@@ -55,7 +63,80 @@ def _with_summary(db: Session, contact: Contact) -> ContactOut:
     out.total_purchases = round(total_purchases, 2)
     out.total_paid_out = round(total_paid_out, 2)
     out.payable = round(total_purchases - total_paid_out, 2)
+
+    out.orders_count = db.query(SalesOrder).filter(SalesOrder.contact_id == contact.id).count()
+    out.invoices_count = db.query(Invoice).filter(Invoice.contact_id == contact.id).count()
+    out.bills_count = db.query(Purchase).filter(Purchase.contact_id == contact.id).count()
+    out.payments_count = (
+        db.query(PaymentIn).filter(PaymentIn.contact_id == contact.id).count()
+        + db.query(PaymentOut).filter(PaymentOut.contact_id == contact.id).count()
+    )
+
+    online_sales, offline_sales = _channel_sales(db, contact.id)
+    out.online_sales = online_sales
+    out.offline_sales = offline_sales
+
+    channels = set()
+    online_count = 0
+    offline_count = 0
+    for model, date_col in _CHANNEL_SOURCES:
+        rows = (
+            db.query(model.source, func.count(model.id), func.max(date_col))
+            .filter(model.contact_id == contact.id)
+            .group_by(model.source)
+            .all()
+        )
+        for source_value, count, max_date in rows:
+            if source_value == "online":
+                channels.add("online")
+                online_count += count
+            elif source_value == "offline":
+                channels.add("offline")
+                offline_count += count
+    out.channels = sorted(channels)  # ["offline"] < ["offline", "online"] alpha order is fine, UI re-labels
+    out.online_transaction_count = online_count
+    out.offline_transaction_count = offline_count
+    out.last_transaction_date = _last_transaction_date(db, contact.id)
     return out
+
+
+# (model, date_column) pairs for every document type that carries both a
+# contact_id and a source -- used to compute a party's *actual* channel mix
+# (never a fixed label) and combined transaction counts.
+_CHANNEL_SOURCES = [
+    (SalesOrder, SalesOrder.order_date),
+    (Invoice, Invoice.invoice_date),
+    (PaymentIn, PaymentIn.payment_date),
+    (Purchase, Purchase.purchase_date),
+    (PurchaseOrder, PurchaseOrder.order_date),
+    (PaymentOut, PaymentOut.payment_date),
+    (Expense, Expense.expense_date),
+]
+
+
+def _channel_sales(db: Session, contact_id: int):
+    online = (
+        db.query(func.coalesce(func.sum(Invoice.total_amount), 0))
+        .filter(Invoice.contact_id == contact_id, Invoice.status != "Voided", Invoice.source == "online")
+        .scalar()
+        or 0
+    )
+    offline = (
+        db.query(func.coalesce(func.sum(Invoice.total_amount), 0))
+        .filter(Invoice.contact_id == contact_id, Invoice.status != "Voided", Invoice.source == "offline")
+        .scalar()
+        or 0
+    )
+    return round(online, 2), round(offline, 2)
+
+
+def _last_transaction_date(db: Session, contact_id: int):
+    dates = []
+    for model, date_col in _CHANNEL_SOURCES:
+        d = db.query(func.max(date_col)).filter(model.contact_id == contact_id).scalar()
+        if d:
+            dates.append(d)
+    return max(dates) if dates else None
 
 
 @router.get("", response_model=list[ContactOut])

@@ -23,6 +23,7 @@ def _get_or_404(db: Session, item_id: int) -> Expense:
 @router.get("", response_model=list[ExpenseOut])
 def list_expenses(
     status: Optional[str] = Query(None),
+    contact_id: Optional[int] = Query(None),
     q: Optional[str] = Query(None, description="Search by category or description"),
     admin: str = Depends(get_current_admin),
     db: Session = Depends(get_db),
@@ -30,6 +31,8 @@ def list_expenses(
     query = db.query(Expense).options(joinedload(Expense.account), joinedload(Expense.contact))
     if status:
         query = query.filter(Expense.status == status)
+    if contact_id:
+        query = query.filter(Expense.contact_id == contact_id)
     if q:
         like = f"%{q}%"
         query = query.filter(Expense.category.ilike(like) | Expense.description.ilike(like))

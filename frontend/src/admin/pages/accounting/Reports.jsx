@@ -19,6 +19,11 @@ const REPORTS = [
   { id: "tax", label: "Tax Report", ranged: true },
   { id: "item-sales", label: "Item-wise Sales", ranged: true },
   { id: "payments", label: "Payments Ledger", ranged: true },
+  { id: "sales-forecast", label: "Sales Forecast", ranged: false },
+  { id: "cash-flow-forecast", label: "Cash Flow Forecast", ranged: false },
+  { id: "anomalies", label: "Anomaly Detection", ranged: false },
+  { id: "customer-segmentation", label: "Customer Segmentation", ranged: false },
+  { id: "seasonal-pattern", label: "Seasonal Demand Pattern", ranged: false },
 ];
 
 function money(n) {
@@ -31,6 +36,7 @@ export default function Reports() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [data, setData] = useState(null);
+  const [loadedFor, setLoadedFor] = useState(null);
 
   const active = REPORTS.find((r) => r.id === activeId);
 
@@ -45,7 +51,10 @@ export default function Reports() {
       }
     }
     const query = params.toString() ? `?${params.toString()}` : "";
-    api.get(`/admin/accounting/reports/${activeId}${query}`).then(setData);
+    api.get(`/admin/accounting/reports/${activeId}${query}`).then((result) => {
+      setData(result);
+      setLoadedFor(activeId);
+    });
   }, [activeId, range, dateFrom, dateTo]);
 
   return (
@@ -80,7 +89,7 @@ export default function Reports() {
         ))}
       </nav>
 
-      {!data ? <Loading /> : <ReportBody id={activeId} data={data} />}
+      {!data || loadedFor !== activeId ? <Loading /> : <ReportBody id={activeId} data={data} />}
     </div>
   );
 }
@@ -336,6 +345,143 @@ function ReportBody({ id, data }) {
             ]}
             rows={data.rows}
           />
+        </>
+      );
+    case "sales-forecast":
+      return (
+        <>
+          <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+            "Level 1" forecast -- a simple trend line over the trailing 6 months, no ML model. Treat it as a
+            rough planning signal, not a guarantee.
+          </p>
+          {!data.has_data ? (
+            <Empty>Not enough invoice history yet to forecast.</Empty>
+          ) : (
+            <>
+              <div className="stat-cards" style={{ marginBottom: 24 }}>
+                <KpiCard label="Forecast Period" value={data.forecast_period} />
+                <KpiCard label="Forecast Sales" value={money(data.forecast_amount)} />
+              </div>
+              <h3 style={{ fontSize: "1rem" }}>Trailing History</h3>
+              <ReportTable
+                columns={[
+                  { key: "period", label: "Month" },
+                  { key: "amount", label: "Sales", render: (r) => money(r.amount) },
+                ]}
+                rows={data.history}
+              />
+              <h3 style={{ fontSize: "1rem", marginTop: 20 }}>Top Plants -- Next Month Forecast</h3>
+              <ReportTable
+                columns={[
+                  { key: "name", label: "Plant" },
+                  { key: "forecast_quantity", label: "Forecast Qty" },
+                ]}
+                rows={data.top_plant_forecasts}
+              />
+            </>
+          )}
+        </>
+      );
+    case "cash-flow-forecast":
+      return (
+        <>
+          <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+            "Level 1" forecast -- trend line over trailing 6 months of real Payments In/Out.
+          </p>
+          {!data.has_data ? (
+            <Empty>Not enough payment history yet to forecast.</Empty>
+          ) : (
+            <>
+              <div className="stat-cards" style={{ marginBottom: 24 }}>
+                <KpiCard label="Forecast Period" value={data.forecast_period} />
+                <KpiCard label="Forecast Cash In" value={money(data.forecast_cash_in)} />
+                <KpiCard label="Forecast Cash Out" value={money(data.forecast_cash_out)} />
+                <KpiCard label="Forecast Net" value={money(data.forecast_net)} />
+              </div>
+              <ReportTable
+                columns={[
+                  { key: "period", label: "Month" },
+                  { key: "cash_in", label: "Cash In", render: (r) => money(r.cash_in) },
+                  { key: "cash_out", label: "Cash Out", render: (r) => money(r.cash_out) },
+                  { key: "net", label: "Net", render: (r) => money(r.net) },
+                ]}
+                rows={data.history}
+              />
+            </>
+          )}
+        </>
+      );
+    case "anomalies":
+      return (
+        <>
+          <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+            Flags transactions more than 2 standard deviations from that category's historical average --
+            could be a genuine mistake, or just a real one-off large transaction. Use judgement.
+          </p>
+          <div className="stat-cards" style={{ marginBottom: 24 }}>
+            <KpiCard label="Flagged Transactions" value={data.total_flagged} />
+          </div>
+          <ReportTable
+            columns={[
+              { key: "date", label: "Date", render: (r) => new Date(r.date).toLocaleDateString() },
+              { key: "type", label: "Type" },
+              { key: "reference", label: "Reference" },
+              { key: "amount", label: "Amount", render: (r) => money(r.amount) },
+              { key: "expected_range", label: "Expected Range" },
+              { key: "reason", label: "Reason" },
+            ]}
+            rows={data.rows}
+            emptyMessage="No anomalies detected -- either everything looks normal, or there isn't enough history yet per category (need 5+ transactions)."
+          />
+        </>
+      );
+    case "customer-segmentation":
+      return (
+        <>
+          <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+            Simple RFM (Recency/Frequency/Monetary) rule-based segmentation.
+          </p>
+          <div className="stat-cards" style={{ marginBottom: 24 }}>
+            {Object.entries(data.segment_counts || {}).map(([segment, count]) => (
+              <KpiCard key={segment} label={segment} value={count} />
+            ))}
+          </div>
+          <ReportTable
+            columns={[
+              { key: "name", label: "Customer" },
+              { key: "segment", label: "Segment" },
+              { key: "frequency", label: "Orders" },
+              { key: "monetary", label: "Total Spent", render: (r) => money(r.monetary) },
+              { key: "recency_days", label: "Days Since Last Order" },
+            ]}
+            rows={data.rows}
+          />
+        </>
+      );
+    case "seasonal-pattern":
+      return (
+        <>
+          <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+            Average sales per calendar month across all available years -- reveals seasonal highs/lows.
+          </p>
+          {!data.has_data ? (
+            <Empty>Not enough invoice history yet to detect a seasonal pattern.</Empty>
+          ) : (
+            <>
+              <div className="stat-cards" style={{ marginBottom: 24 }}>
+                <KpiCard label="Peak Month" value={data.peak_month} />
+                <KpiCard label="Slowest Month" value={data.low_month} />
+              </div>
+              <ReportTable
+                columns={[
+                  { key: "month_name", label: "Month" },
+                  { key: "avg_sales", label: "Avg Sales", render: (r) => money(r.avg_sales) },
+                  { key: "years_counted", label: "Years of Data" },
+                ]}
+                rows={data.rows}
+              />
+            </>
+          )}
         </>
       );
     default:

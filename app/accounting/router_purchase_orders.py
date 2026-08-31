@@ -33,6 +33,7 @@ def _with_bill_ref(db: Session, item: PurchaseOrder) -> PurchaseOrderOut:
 @router.get("/purchase-orders", response_model=list[PurchaseOrderOut])
 def list_purchase_orders(
     status: Optional[str] = Query(None),
+    contact_id: Optional[int] = Query(None),
     q: Optional[str] = Query(None, description="Search by order # or supplier name"),
     admin: str = Depends(get_current_admin),
     db: Session = Depends(get_db),
@@ -42,6 +43,8 @@ def list_purchase_orders(
     )
     if status:
         query = query.filter(PurchaseOrder.status == status)
+    if contact_id:
+        query = query.filter(PurchaseOrder.contact_id == contact_id)
     if q:
         like = f"%{q}%"
         query = query.join(Contact, Contact.id == PurchaseOrder.contact_id).filter(

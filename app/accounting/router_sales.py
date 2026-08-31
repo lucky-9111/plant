@@ -35,6 +35,7 @@ router = APIRouter(tags=["accounting-sales"])
 def list_sales_orders(
     source: Optional[str] = Query(None, description="online|offline"),
     status: Optional[str] = Query(None),
+    contact_id: Optional[int] = Query(None),
     q: Optional[str] = Query(None, description="Search by order # or contact name"),
     admin: str = Depends(get_current_admin),
     db: Session = Depends(get_db),
@@ -46,6 +47,8 @@ def list_sales_orders(
         query = query.filter(SalesOrder.source == source)
     if status:
         query = query.filter(SalesOrder.status == status)
+    if contact_id:
+        query = query.filter(SalesOrder.contact_id == contact_id)
     if q:
         like = f"%{q}%"
         query = query.join(Contact, Contact.id == SalesOrder.contact_id).filter(
@@ -200,6 +203,7 @@ def convert_to_invoice(
 def list_invoices(
     source: Optional[str] = Query(None, description="online|offline"),
     status: Optional[str] = Query(None),
+    contact_id: Optional[int] = Query(None),
     q: Optional[str] = Query(None, description="Search by invoice # or contact name"),
     admin: str = Depends(get_current_admin),
     db: Session = Depends(get_db),
@@ -211,6 +215,8 @@ def list_invoices(
         query = query.filter(Invoice.source == source)
     if status:
         query = query.filter(Invoice.status == status)
+    if contact_id:
+        query = query.filter(Invoice.contact_id == contact_id)
     if q:
         like = f"%{q}%"
         query = query.join(Contact, Contact.id == Invoice.contact_id).filter(
@@ -271,12 +277,18 @@ def void_invoice(
 @router.get("/payments-in", response_model=list[PaymentInOut])
 def list_payments_in(
     source: Optional[str] = Query(None, description="online|offline"),
+    contact_id: Optional[int] = Query(None),
+    invoice_id: Optional[int] = Query(None),
     admin: str = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
     query = db.query(PaymentIn)
     if source in ("online", "offline"):
         query = query.filter(PaymentIn.source == source)
+    if contact_id:
+        query = query.filter(PaymentIn.contact_id == contact_id)
+    if invoice_id:
+        query = query.filter(PaymentIn.invoice_id == invoice_id)
     return query.order_by(PaymentIn.payment_date.desc()).all()
 
 

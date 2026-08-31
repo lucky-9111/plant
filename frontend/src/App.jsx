@@ -51,7 +51,8 @@ import AccountingSalesOrders from "./admin/pages/accounting/SalesOrders";
 import AccountingSalesOrderDetail from "./admin/pages/accounting/SalesOrderDetail";
 import AccountingInvoices from "./admin/pages/accounting/Invoices";
 import AccountingInvoiceDetail from "./admin/pages/accounting/InvoiceDetail";
-import AccountingContacts from "./admin/pages/accounting/Contacts";
+import AccountingParties from "./admin/pages/accounting/Parties";
+import AccountingPartyProfile from "./admin/pages/accounting/PartyProfile";
 import AccountingChartOfAccounts from "./admin/pages/accounting/ChartOfAccounts";
 import AccountingTaxRates from "./admin/pages/accounting/TaxRates";
 import AccountingPurchaseOrders from "./admin/pages/accounting/PurchaseOrders";
@@ -139,7 +140,8 @@ export default function App() {
           <Route path="accounting/sales-orders/:id" element={<AccountingSalesOrderDetail />} />
           <Route path="accounting/invoices" element={<AccountingInvoices />} />
           <Route path="accounting/invoices/:id" element={<AccountingInvoiceDetail />} />
-          <Route path="accounting/contacts" element={<AccountingContacts />} />
+          <Route path="accounting/parties" element={<AccountingParties />} />
+          <Route path="accounting/parties/:id" element={<AccountingPartyProfile />} />
           <Route path="accounting/chart-of-accounts" element={<AccountingChartOfAccounts />} />
           <Route path="accounting/tax-rates" element={<AccountingTaxRates />} />
           <Route path="accounting/purchase-orders" element={<AccountingPurchaseOrders />} />

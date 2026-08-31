@@ -65,6 +65,19 @@ class ContactOut(BaseModel):
     total_purchases: float = 0
     total_paid_out: float = 0
     payable: float = 0
+    # Party 360 additions -- channel is *computed* from the source of this
+    # party's actual linked transactions, never a fixed label on the
+    # contact itself (a party can have both online and offline history).
+    orders_count: int = 0
+    invoices_count: int = 0
+    bills_count: int = 0
+    payments_count: int = 0
+    last_transaction_date: Optional[datetime] = None
+    online_sales: float = 0
+    offline_sales: float = 0
+    online_transaction_count: int = 0
+    offline_transaction_count: int = 0
+    channels: List[str] = []  # ["online"] | ["offline"] | ["online", "offline"] | []
 
 
 class ContactIn(BaseModel):
@@ -597,3 +610,140 @@ class PaymentsReportOut(BaseModel):
     total_out: float = 0
     net: float = 0
     rows: List[PaymentLedgerRow] = []
+
+
+# ---------- "Level 1" Analytics: Forecasting / Anomaly / Segmentation ----------
+
+class ItemForecastRow(BaseModel):
+    plant_id: Optional[int] = None
+    name: str
+    forecast_quantity: int = 0
+
+
+class SalesForecastOut(BaseModel):
+    history: List[MonthlyAmountRow] = []
+    forecast_period: str
+    forecast_amount: float = 0
+    top_plant_forecasts: List[ItemForecastRow] = []
+    has_data: bool = False
+
+
+class CashFlowForecastOut(BaseModel):
+    history: List[CashFlowRow] = []
+    forecast_period: str
+    forecast_cash_in: float = 0
+    forecast_cash_out: float = 0
+    forecast_net: float = 0
+    has_data: bool = False
+
+
+class AnomalyRow(BaseModel):
+    date: datetime
+    type: str  # invoice | expense | payment_in | payment_out
+    reference: str
+    amount: float
+    expected_range: str
+    reason: str
+
+
+class AnomalyReportOut(BaseModel):
+    rows: List[AnomalyRow] = []
+    total_flagged: int = 0
+
+
+class CustomerSegmentRow(BaseModel):
+    contact_id: int
+    name: str
+    recency_days: Optional[int] = None
+    frequency: int = 0
+    monetary: float = 0
+    segment: str
+
+
+class CustomerSegmentationOut(BaseModel):
+    rows: List[CustomerSegmentRow] = []
+    segment_counts: dict = {}
+
+
+class SeasonalPatternRow(BaseModel):
+    month: int
+    month_name: str
+    avg_sales: float = 0
+    years_counted: int = 0
+
+
+class SeasonalPatternOut(BaseModel):
+    rows: List[SeasonalPatternRow] = []
+    peak_month: Optional[str] = None
+    low_month: Optional[str] = None
+    has_data: bool = False
+
+
+# ---------- Parties (360-degree party profile) ----------
+
+class PartyStatementRow(BaseModel):
+    date: datetime
+    transaction: str
+    reference: str
+    source: str  # online | offline
+    debit: float = 0
+    credit: float = 0
+    balance: float = 0
+
+
+class PartyStatementOut(BaseModel):
+    opening_balance: float = 0
+    rows: List[PartyStatementRow] = []
+    closing_balance: float = 0
+
+
+class PartyTimelineRow(BaseModel):
+    date: datetime
+    type: str  # sales_order | invoice | payment_in | purchase_order | bill | payment_out | expense
+    label: str
+    reference: str
+    source: str  # online | offline
+    amount: Optional[float] = None
+    link_type: str  # matches frontend route segment
+    link_id: int
+
+
+class PartyTimelineOut(BaseModel):
+    rows: List[PartyTimelineRow] = []
+
+
+class PartyItemRow(BaseModel):
+    plant_id: Optional[int] = None
+    name: str
+    quantity: int = 0
+    total_value: float = 0
+    last_transaction: Optional[datetime] = None
+
+
+class PartyItemsOut(BaseModel):
+    sold: List[PartyItemRow] = []
+    purchased: List[PartyItemRow] = []
+
+
+class PartyDuplicateMatch(BaseModel):
+    id: int
+    name: str
+    phone: str
+    email: str
+    source: str
+    contact_type: str
+    matched_on: str  # phone | email | gstin | name
+
+
+class PartyDuplicateCheckOut(BaseModel):
+    matches: List[PartyDuplicateMatch] = []
+
+
+class PartyDashboardSummaryOut(BaseModel):
+    total_parties: int = 0
+    online_only: int = 0
+    offline_only: int = 0
+    both_channels: int = 0
+    customers: int = 0
+    suppliers: int = 0
+    both_types: int = 0

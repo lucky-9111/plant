@@ -35,7 +35,7 @@ const ACCOUNTING_NAV = [
   { to: "/admin/accounting/purchase-orders", label: "Purchase Orders" },
   { to: "/admin/accounting/bills", label: "Bills" },
   { to: "/admin/accounting/expenses", label: "Expenses" },
-  { to: "/admin/accounting/contacts", label: "Contacts" },
+  { to: "/admin/accounting/parties", label: "Parties" },
   { to: "/admin/accounting/employees", label: "Employees" },
   { to: "/admin/accounting/reports", label: "Reports" },
   { to: "/admin/accounting/roles", label: "Roles" },

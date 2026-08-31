@@ -1,7 +1,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.auth import verify_password
@@ -15,6 +15,8 @@ from app.models import (
     CustomerActivityLog,
     GalleryImage,
     Inquiry,
+    Order,
+    OrderItem,
     Plant,
     PricingPlan,
     Service,
@@ -141,6 +143,51 @@ def get_related_plants(slug: str, db: Session = Depends(get_db)):
         .limit(4)
         .all()
     )
+
+
+@router.get("/plants/{slug}/recommendations", response_model=list[PlantOut])
+def get_plant_recommendations(slug: str, db: Session = Depends(get_db)):
+    """"Customers who bought this also bought" -- real co-purchase analysis
+    over order history, falling back to same-category plants when there
+    isn't enough co-purchase data yet (e.g. a brand-new plant). Deliberately
+    separate from the existing /related endpoint (same-category only) so
+    that endpoint's existing behavior is untouched."""
+    plant = db.query(Plant).filter(Plant.slug == slug).first()
+    if not plant:
+        raise HTTPException(status_code=404, detail="Plant not found")
+
+    orders_with_plant = db.query(OrderItem.order_id).filter(OrderItem.plant_id == plant.id).subquery()
+    co_purchased = (
+        db.query(OrderItem.plant_id, func.count(OrderItem.id).label("co_count"))
+        .filter(OrderItem.order_id.in_(orders_with_plant), OrderItem.plant_id != plant.id)
+        .group_by(OrderItem.plant_id)
+        .order_by(func.count(OrderItem.id).desc())
+        .limit(4)
+        .all()
+    )
+    plant_ids = [pid for pid, _ in co_purchased]
+
+    if len(plant_ids) < 4:
+        exclude_ids = plant_ids + [plant.id]
+        fallback = (
+            db.query(Plant.id)
+            .filter(
+                Plant.category_id == plant.category_id,
+                Plant.id.notin_(exclude_ids),
+                Plant.is_active == True,  # noqa: E712
+            )
+            .limit(4 - len(plant_ids))
+            .all()
+        )
+        plant_ids += [pid for (pid,) in fallback]
+
+    if not plant_ids:
+        return []
+
+    plants = db.query(Plant).filter(Plant.id.in_(plant_ids), Plant.is_active == True).all()  # noqa: E712
+    order_map = {pid: i for i, pid in enumerate(plant_ids)}
+    plants.sort(key=lambda p: order_map.get(p.id, 999))
+    return plants
 
 
 @router.get("/services", response_model=list[ServiceOut])

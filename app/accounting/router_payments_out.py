@@ -19,6 +19,7 @@ router = APIRouter(prefix="/payments-out", tags=["accounting-payments-out"])
 def list_payments_out(
     purchase_id: Optional[int] = Query(None),
     expense_id: Optional[int] = Query(None),
+    contact_id: Optional[int] = Query(None),
     admin: str = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
@@ -27,6 +28,8 @@ def list_payments_out(
         query = query.filter(PaymentOut.purchase_id == purchase_id)
     if expense_id is not None:
         query = query.filter(PaymentOut.expense_id == expense_id)
+    if contact_id is not None:
+        query = query.filter(PaymentOut.contact_id == contact_id)
     return query.order_by(PaymentOut.payment_date.desc()).all()
 
 

@@ -31,12 +31,18 @@ from app.accounting.models import (
 from app.accounting.schemas import (
     AgingReportOut,
     AgingRow,
+    AnomalyReportOut,
+    AnomalyRow,
+    CashFlowForecastOut,
     CashFlowOut,
     CashFlowRow,
     CategoryAmountRow,
     ContactOutstandingRow,
     CustomerOutstandingOut,
+    CustomerSegmentationOut,
+    CustomerSegmentRow,
     ExpenseReportOut,
+    ItemForecastRow,
     ItemSalesReportOut,
     ItemSalesRow,
     MonthlyAmountRow,
@@ -45,17 +51,47 @@ from app.accounting.schemas import (
     ProfitLossOut,
     PurchaseReportOut,
     BalanceSheetOut,
+    SalesForecastOut,
     SalesReportOut,
+    SeasonalPatternOut,
+    SeasonalPatternRow,
     SupplierOutstandingOut,
     TaxReportOut,
     TaxReportRow,
 )
-from app.analytics_utils import RANGE_LABELS, money, month_bucket, now_ist, resolve_date_range, to_utc
+from app.accounting.stats_utils import linear_forecast, mean_stddev
+from app.analytics_utils import (
+    MONTH_NAMES,
+    RANGE_LABELS,
+    money,
+    month_bucket,
+    now_ist,
+    resolve_date_range,
+    to_utc,
+)
 from app.database import get_db
 from app.deps import get_current_admin
 from app.models import Plant, Purchase, PurchaseItem
 
 router = APIRouter(prefix="/reports", tags=["accounting-reports"])
+
+# Tunable thresholds for the "Level 1" analytics features below -- single
+# edit point, matching the existing convention in app/analytics_utils.py.
+ANOMALY_MIN_SAMPLE_SIZE = 5  # need at least this many data points before flagging outliers means anything
+ANOMALY_STD_MULTIPLIER = 2
+SEGMENT_AT_RISK_DAYS = 90
+SEGMENT_VIP_MIN_FREQUENCY = 5
+SEGMENT_VIP_MIN_MONETARY = 5000
+
+
+def _next_period_label(period: str) -> str:
+    """'2026-08' -> '2026-09' (rolls over to next year at December)."""
+    year, month = map(int, period.split("-"))
+    month += 1
+    if month > 12:
+        month = 1
+        year += 1
+    return f"{year:04d}-{month:02d}"
 
 
 def range_dep(
@@ -600,4 +636,218 @@ def payments_report(
         total_out=total_out,
         net=money(total_in - total_out),
         rows=rows,
+    )
+
+
+# ---------- "Level 1" Analytics (pure Python stats, no ML library) ----------
+
+def _n_months_ago(dt: datetime, n: int) -> datetime:
+    month_index = dt.month - 1 - n
+    year = dt.year + month_index // 12
+    month = month_index % 12 + 1
+    return dt.replace(year=year, month=month, day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
+@router.get("/sales-forecast", response_model=SalesForecastOut)
+def sales_forecast_report(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
+    """Simple least-squares trend line over the trailing 6 months of real
+    Invoice data, extrapolated one month forward -- no ML library."""
+    monthly = (
+        db.query(month_bucket(Invoice.invoice_date), func.sum(Invoice.total_amount))
+        .filter(Invoice.status != "Voided")
+        .group_by(month_bucket(Invoice.invoice_date))
+        .order_by(month_bucket(Invoice.invoice_date))
+        .all()
+    )
+    monthly = monthly[-6:]
+    history = [MonthlyAmountRow(period=p, amount=money(a)) for p, a in monthly]
+    has_data = len(history) > 0
+
+    forecast_amount = linear_forecast([r.amount for r in history]) if has_data else 0.0
+    forecast_period = _next_period_label(history[-1].period) if history else ""
+
+    period_start = _n_months_ago(datetime.utcnow(), 3)
+    item_rows = (
+        db.query(SalesOrderItem.plant_id, SalesOrderItem.description, func.sum(SalesOrderItem.quantity))
+        .join(SalesOrder, SalesOrder.id == SalesOrderItem.sales_order_id)
+        .join(Invoice, Invoice.sales_order_id == SalesOrder.id)
+        .filter(Invoice.invoice_date >= period_start, Invoice.status != "Voided")
+        .group_by(SalesOrderItem.plant_id, SalesOrderItem.description)
+        .order_by(func.sum(SalesOrderItem.quantity).desc())
+        .limit(5)
+        .all()
+    )
+    top_plant_forecasts = [
+        ItemForecastRow(plant_id=pid, name=desc or "Unknown item", forecast_quantity=round((qty or 0) / 3))
+        for pid, desc, qty in item_rows
+    ]
+
+    return SalesForecastOut(
+        history=history,
+        forecast_period=forecast_period,
+        forecast_amount=forecast_amount,
+        top_plant_forecasts=top_plant_forecasts,
+        has_data=has_data,
+    )
+
+
+@router.get("/cash-flow-forecast", response_model=CashFlowForecastOut)
+def cash_flow_forecast_report(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
+    in_rows = dict(
+        db.query(month_bucket(PaymentIn.payment_date), func.sum(PaymentIn.amount))
+        .group_by(month_bucket(PaymentIn.payment_date))
+        .all()
+    )
+    out_rows = dict(
+        db.query(month_bucket(PaymentOut.payment_date), func.sum(PaymentOut.amount))
+        .group_by(month_bucket(PaymentOut.payment_date))
+        .all()
+    )
+    periods = sorted(set(in_rows) | set(out_rows))[-6:]
+    history = []
+    for p in periods:
+        cash_in = money(in_rows.get(p, 0))
+        cash_out = money(out_rows.get(p, 0))
+        history.append(CashFlowRow(period=p, cash_in=cash_in, cash_out=cash_out, net=money(cash_in - cash_out)))
+
+    has_data = len(history) > 0
+    forecast_cash_in = linear_forecast([r.cash_in for r in history]) if has_data else 0.0
+    forecast_cash_out = linear_forecast([r.cash_out for r in history]) if has_data else 0.0
+    forecast_period = _next_period_label(history[-1].period) if history else ""
+
+    return CashFlowForecastOut(
+        history=history,
+        forecast_period=forecast_period,
+        forecast_cash_in=forecast_cash_in,
+        forecast_cash_out=forecast_cash_out,
+        forecast_net=money(forecast_cash_in - forecast_cash_out),
+        has_data=has_data,
+    )
+
+
+def _flag_anomalies(rows, amount_fn, date_fn, type_label, reference_fn):
+    flagged = []
+    amounts = [amount_fn(r) for r in rows]
+    if len(amounts) < ANOMALY_MIN_SAMPLE_SIZE:
+        return flagged
+    mean, std = mean_stddev(amounts)
+    if std <= 0:
+        return flagged
+    low = max(mean - ANOMALY_STD_MULTIPLIER * std, 0)
+    high = mean + ANOMALY_STD_MULTIPLIER * std
+    for r in rows:
+        amount = amount_fn(r)
+        if amount < low or amount > high:
+            flagged.append(
+                AnomalyRow(
+                    date=date_fn(r), type=type_label, reference=reference_fn(r), amount=money(amount),
+                    expected_range=f"Rs {money(low)} - Rs {money(high)}",
+                    reason="Unusually high amount" if amount > mean else "Unusually low amount",
+                )
+            )
+    return flagged
+
+
+@router.get("/anomalies", response_model=AnomalyReportOut)
+def anomaly_report(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
+    """Flags transactions more than 2 standard deviations from that
+    category's historical mean -- a classic, dependency-free outlier
+    detection technique. Needs at least a handful of data points per
+    category before it can say anything meaningful."""
+    rows = []
+    rows += _flag_anomalies(
+        db.query(Expense).filter(Expense.status != "Voided").all(),
+        lambda e: e.total_amount, lambda e: e.expense_date, "expense",
+        lambda e: f"{e.category} #{e.id}",
+    )
+    rows += _flag_anomalies(
+        db.query(Invoice).filter(Invoice.status != "Voided").all(),
+        lambda i: i.total_amount, lambda i: i.invoice_date, "invoice",
+        lambda i: i.invoice_number,
+    )
+    rows += _flag_anomalies(
+        db.query(PaymentOut).all(),
+        lambda p: p.amount, lambda p: p.payment_date, "payment_out",
+        lambda p: p.reference or f"Payment #{p.id}",
+    )
+    rows += _flag_anomalies(
+        db.query(Purchase).all(),
+        lambda b: b.total_cost, lambda b: b.purchase_date, "bill",
+        lambda b: b.invoice_number or f"Bill #{b.id}",
+    )
+    rows.sort(key=lambda r: r.date, reverse=True)
+    return AnomalyReportOut(rows=rows, total_flagged=len(rows))
+
+
+@router.get("/customer-segmentation", response_model=CustomerSegmentationOut)
+def customer_segmentation_report(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
+    """Simple RFM (Recency/Frequency/Monetary) rule-based segmentation --
+    no clustering library needed, just bucketing against tunable
+    thresholds defined at the top of this file."""
+    contacts = db.query(Contact).filter(Contact.contact_type.in_(["customer", "both"])).all()
+    now = now_ist().replace(tzinfo=None)
+    rows = []
+    segment_counts = {}
+
+    for c in contacts:
+        invoices = db.query(Invoice).filter(Invoice.contact_id == c.id, Invoice.status != "Voided").all()
+        if not invoices:
+            continue
+        frequency = len(invoices)
+        monetary = money(sum(i.total_amount for i in invoices))
+        last_date = max(i.invoice_date for i in invoices)
+        recency_days = (now - last_date).days
+
+        if recency_days > SEGMENT_AT_RISK_DAYS:
+            segment = "At Risk"
+        elif frequency >= SEGMENT_VIP_MIN_FREQUENCY and monetary >= SEGMENT_VIP_MIN_MONETARY:
+            segment = "VIP"
+        elif frequency == 1:
+            segment = "New"
+        else:
+            segment = "Regular"
+
+        segment_counts[segment] = segment_counts.get(segment, 0) + 1
+        rows.append(
+            CustomerSegmentRow(
+                contact_id=c.id, name=c.name, recency_days=recency_days,
+                frequency=frequency, monetary=monetary, segment=segment,
+            )
+        )
+
+    rows.sort(key=lambda r: r.monetary, reverse=True)
+    return CustomerSegmentationOut(rows=rows, segment_counts=segment_counts)
+
+
+@router.get("/seasonal-pattern", response_model=SeasonalPatternOut)
+def seasonal_pattern_report(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
+    """Average sales per calendar month-of-year across all available years
+    -- reveals which months are historically busy/slow seasons."""
+    monthly_totals = (
+        db.query(month_bucket(Invoice.invoice_date), func.sum(Invoice.total_amount))
+        .filter(Invoice.status != "Voided")
+        .group_by(month_bucket(Invoice.invoice_date))
+        .all()
+    )
+    month_values = {m: [] for m in range(1, 13)}
+    for period, amount in monthly_totals:
+        _, month_str = period.split("-")
+        month_values[int(month_str)].append(amount or 0)
+
+    rows = []
+    for m in range(1, 13):
+        values = month_values[m]
+        avg = money(sum(values) / len(values)) if values else 0.0
+        rows.append(SeasonalPatternRow(month=m, month_name=MONTH_NAMES[m - 1], avg_sales=avg, years_counted=len(values)))
+
+    counted_rows = [r for r in rows if r.years_counted > 0]
+    has_data = len(counted_rows) > 0
+    peak = max(counted_rows, key=lambda r: r.avg_sales, default=None)
+    low = min(counted_rows, key=lambda r: r.avg_sales, default=None)
+
+    return SeasonalPatternOut(
+        rows=rows,
+        peak_month=peak.month_name if peak else None,
+        low_month=low.month_name if low else None,
+        has_data=has_data,
     )
