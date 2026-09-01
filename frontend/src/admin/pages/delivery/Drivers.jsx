@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import CrudPage from "../../CrudPage";
 import { driverStatusBadgeClass } from "../../delivery/deliveryStatus";
 
@@ -12,7 +13,11 @@ export default function Drivers() {
       searchable
       searchPlaceholder="Search by name or phone..."
       columns={[
-        { key: "name", label: "Name" },
+        {
+          key: "name",
+          label: "Name",
+          render: (item) => <Link to={`/admin/delivery/drivers/${item.id}`}>{item.name}</Link>,
+        },
         { key: "phone", label: "Phone" },
         {
           key: "status",

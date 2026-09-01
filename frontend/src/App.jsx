@@ -79,6 +79,7 @@ import DeliveryDeliveries from "./admin/pages/delivery/Deliveries";
 import DeliveryCreate from "./admin/pages/delivery/DeliveryCreate";
 import DeliveryDetail from "./admin/pages/delivery/DeliveryDetail";
 import DeliveryDrivers from "./admin/pages/delivery/Drivers";
+import DeliveryDriverDetail from "./admin/pages/delivery/DriverDetail";
 import DeliveryVehicles from "./admin/pages/delivery/Vehicles";
 import DeliveryVehicleDetail from "./admin/pages/delivery/VehicleDetail";
 import DeliveryTrips from "./admin/pages/delivery/Trips";
@@ -177,6 +178,7 @@ export default function App() {
           <Route path="delivery/deliveries/new" element={<DeliveryCreate />} />
           <Route path="delivery/deliveries/:id" element={<DeliveryDetail />} />
           <Route path="delivery/drivers" element={<DeliveryDrivers />} />
+          <Route path="delivery/drivers/:id" element={<DeliveryDriverDetail />} />
           <Route path="delivery/vehicles" element={<DeliveryVehicles />} />
           <Route path="delivery/vehicles/:id" element={<DeliveryVehicleDetail />} />
           <Route path="delivery/trips" element={<DeliveryTrips />} />
