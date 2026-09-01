@@ -15,17 +15,19 @@ export default function Payroll() {
   const [labourList, setLabourList] = useState([]);
   const [genForm, setGenForm] = useState({ worker_type: "EMPLOYEE", employee_id: "", labour_id: "" });
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
   const [adjusting, setAdjusting] = useState(null);
   const [adjustForm, setAdjustForm] = useState({ advance_recovery: 0, deductions: 0, notes: "" });
 
   function load() {
     setRows(null);
+    setLoadError("");
     const params = new URLSearchParams();
     if (workerType) params.set("worker_type", workerType);
     if (periodYear) params.set("period_year", periodYear);
     if (periodMonth) params.set("period_month", periodMonth);
-    api.get(`/admin/labour/payroll?${params.toString()}`).then(setRows);
+    api.get(`/admin/labour/payroll?${params.toString()}`).then(setRows).catch((err) => setLoadError(err.message || "Could not load payroll."));
   }
 
   useEffect(load, [workerType, periodYear, periodMonth]);
@@ -122,7 +124,11 @@ export default function Payroll() {
         </select>
       </div>
 
-      {!rows ? (
+      {loadError ? (
+        <div className="alert alert-error">
+          {loadError} <button type="button" className="btn btn-outline dark" onClick={load}>Retry</button>
+        </div>
+      ) : !rows ? (
         <Loading />
       ) : rows.length === 0 ? (
         <Empty>No payroll generated for this period yet.</Empty>

@@ -3,6 +3,8 @@ import os
 import razorpay
 from fastapi import HTTPException
 
+from app.monitoring.recorder import record_error
+
 
 def _get_client() -> razorpay.Client:
     key_id = os.environ.get("RAZORPAY_KEY_ID", "")
@@ -30,7 +32,11 @@ def create_razorpay_order(amount_rupees: float, receipt: str) -> dict:
         )
     except HTTPException:
         raise
-    except Exception:  # noqa: BLE001 - any SDK/network failure must not crash checkout
+    except Exception as exc:  # noqa: BLE001 - any SDK/network failure must not crash checkout
+        record_error(
+            "External APIs", "Razorpay", "create_razorpay_order", "external:razorpay/orders", "EXTERNAL",
+            502, None, exc,
+        )
         raise HTTPException(
             status_code=502, detail="Could not reach the payment gateway. Please try again."
         )
@@ -49,5 +55,13 @@ def verify_payment_signature(razorpay_order_id: str, razorpay_payment_id: str, r
         return True
     except razorpay.errors.SignatureVerificationError:
         return False
-    except Exception:  # noqa: BLE001 - treat any verification failure as "not verified"
+    except Exception as exc:  # noqa: BLE001 - treat any verification failure as "not verified"
+        # Distinct error_code from a genuine bad signature (above) so the
+        # System Health dashboard can tell "fraud attempt" apart from
+        # "verification itself broke" -- both still resolve to `False`
+        # (payment not verified), no behavior change either way.
+        record_error(
+            "External APIs", "Razorpay", "verify_payment_signature", "external:razorpay/verify", "EXTERNAL",
+            502, None, exc, error_code="RazorpayVerificationCrash",
+        )
         return False

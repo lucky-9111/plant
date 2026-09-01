@@ -12,15 +12,17 @@ export default function Invoices() {
   const [source, setSource] = useState("");
   const [status, setStatus] = useState("");
   const [q, setQ] = useState("");
+  const [error, setError] = useState("");
 
   function load() {
     setItems(null);
+    setError("");
     const params = new URLSearchParams();
     if (source) params.set("source", source);
     if (status) params.set("status", status);
     if (q) params.set("q", q);
     const query = params.toString() ? `?${params.toString()}` : "";
-    api.get(`/admin/accounting/invoices${query}`).then(setItems);
+    api.get(`/admin/accounting/invoices${query}`).then(setItems).catch((err) => setError(err.message || "Could not load invoices."));
   }
 
   useEffect(load, [source, status, q]);
@@ -45,7 +47,11 @@ export default function Invoices() {
         <SearchBox value={q} onChange={setQ} placeholder="Search by invoice # or contact name..." />
       </div>
 
-      {!items ? (
+      {error ? (
+        <div className="alert alert-error">
+          {error} <button type="button" className="btn btn-outline dark" onClick={load}>Retry</button>
+        </div>
+      ) : !items ? (
         <Loading />
       ) : items.length === 0 ? (
         <Empty>No invoices yet.</Empty>

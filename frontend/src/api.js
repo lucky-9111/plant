@@ -17,6 +17,16 @@ function formatDetail(detail, fallback) {
   return fallback;
 }
 
+// Attaches `.code`/`.requestId` (from the backend's structured error
+// envelope, when present) to a thrown fetch error, without touching the
+// existing `.message`/`.status` behavior every current caller relies on.
+function annotateError(error, data, res) {
+  error.status = res.status;
+  error.code = data?.error?.code;
+  error.requestId = data?.request_id || res.headers.get("X-Request-ID") || undefined;
+  return error;
+}
+
 async function request(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, {
     credentials: "include",
@@ -26,15 +36,14 @@ async function request(path, options = {}) {
 
   if (!res.ok) {
     let detail = res.statusText;
+    let data = null;
     try {
-      const data = await res.json();
+      data = await res.json();
       detail = formatDetail(data.detail, detail);
     } catch {
       // ignore non-JSON error bodies
     }
-    const error = new Error(detail);
-    error.status = res.status;
-    throw error;
+    throw annotateError(new Error(detail), data, res);
   }
 
   if (res.status === 204) return null;
@@ -46,15 +55,14 @@ async function requestPaged(path) {
 
   if (!res.ok) {
     let detail = res.statusText;
+    let data = null;
     try {
-      const data = await res.json();
+      data = await res.json();
       detail = formatDetail(data.detail, detail);
     } catch {
       // ignore non-JSON error bodies
     }
-    const error = new Error(detail);
-    error.status = res.status;
-    throw error;
+    throw annotateError(new Error(detail), data, res);
   }
 
   const items = await res.json();

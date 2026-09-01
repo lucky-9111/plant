@@ -21,14 +21,16 @@ export default function SalesOrders() {
   const [form, setForm] = useState({ contact_id: "", order_date: todayDateInput(), notes: "", items: [] });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
 
   function load() {
     setItems(null);
+    setLoadError("");
     const params = new URLSearchParams();
     if (source) params.set("source", source);
     if (q) params.set("q", q);
     const query = params.toString() ? `?${params.toString()}` : "";
-    api.get(`/admin/accounting/sales-orders${query}`).then(setItems);
+    api.get(`/admin/accounting/sales-orders${query}`).then(setItems).catch((err) => setLoadError(err.message || "Could not load sales orders."));
   }
 
   useEffect(load, [source, q]);
@@ -155,7 +157,11 @@ export default function SalesOrders() {
         <SearchBox value={q} onChange={setQ} placeholder="Search by order # or contact name..." />
       </div>
 
-      {!items ? (
+      {loadError ? (
+        <div className="alert alert-error">
+          {loadError} <button type="button" className="btn btn-outline dark" onClick={load}>Retry</button>
+        </div>
+      ) : !items ? (
         <Loading />
       ) : items.length === 0 ? (
         <Empty>No sales orders yet. Create your first one.</Empty>

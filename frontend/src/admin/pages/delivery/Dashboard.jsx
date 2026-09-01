@@ -12,13 +12,26 @@ function todayDateInput() {
 export default function DeliveryDashboard() {
   const [date, setDate] = useState(todayDateInput());
   const [summary, setSummary] = useState(null);
+  const [summaryError, setSummaryError] = useState("");
   const [deliveries, setDeliveries] = useState(null);
+  const [deliveriesError, setDeliveriesError] = useState("");
+
+  function loadSummary() {
+    setSummary(null);
+    setSummaryError("");
+    api.get(`/admin/delivery/deliveries/dashboard?date=${date}`).then(setSummary).catch((err) => setSummaryError(err.message || "Could not load dashboard summary."));
+  }
+
+  function loadDeliveries() {
+    setDeliveries(null);
+    setDeliveriesError("");
+    api.get(`/admin/delivery/deliveries?date_from=${date}&date_to=${date}`).then(setDeliveries).catch((err) => setDeliveriesError(err.message || "Could not load deliveries."));
+  }
 
   useEffect(() => {
-    setSummary(null);
-    api.get(`/admin/delivery/deliveries/dashboard?date=${date}`).then(setSummary);
-    setDeliveries(null);
-    api.get(`/admin/delivery/deliveries?date_from=${date}&date_to=${date}`).then(setDeliveries);
+    loadSummary();
+    loadDeliveries();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date]);
 
   return (
@@ -28,7 +41,11 @@ export default function DeliveryDashboard() {
         <input type="date" className="form-control" style={{ maxWidth: 180 }} value={date} onChange={(e) => setDate(e.target.value)} />
       </div>
 
-      {!summary ? (
+      {summaryError ? (
+        <div className="alert alert-error">
+          {summaryError} <button type="button" className="btn btn-outline dark" onClick={loadSummary}>Retry</button>
+        </div>
+      ) : !summary ? (
         <Loading />
       ) : (
         <div className="stat-cards" style={{ marginBottom: 28 }}>
@@ -50,7 +67,11 @@ export default function DeliveryDashboard() {
         </Link>
       </div>
 
-      {!deliveries ? (
+      {deliveriesError ? (
+        <div className="alert alert-error">
+          {deliveriesError} <button type="button" className="btn btn-outline dark" onClick={loadDeliveries}>Retry</button>
+        </div>
+      ) : !deliveries ? (
         <Loading />
       ) : deliveries.length === 0 ? (
         <Empty>No deliveries scheduled for this date.</Empty>

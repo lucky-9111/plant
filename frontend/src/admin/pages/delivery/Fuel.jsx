@@ -17,10 +17,12 @@ export default function Fuel() {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
 
   function load() {
     setLogs(null);
-    api.get("/admin/delivery/fuel").then(setLogs);
+    setLoadError("");
+    api.get("/admin/delivery/fuel").then(setLogs).catch((err) => setLoadError(err.message || "Could not load fuel logs."));
   }
 
   useEffect(load, []);
@@ -65,7 +67,11 @@ export default function Fuel() {
         <button className="btn btn-sm btn-primary" onClick={openForm}>+ Add Fuel Record</button>
       </div>
 
-      {!logs ? (
+      {loadError ? (
+        <div className="alert alert-error">
+          {loadError} <button type="button" className="btn btn-outline dark" onClick={load}>Retry</button>
+        </div>
+      ) : !logs ? (
         <Loading />
       ) : logs.length === 0 ? (
         <Empty>No fuel records yet.</Empty>

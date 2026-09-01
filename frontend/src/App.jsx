@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import PublicLayout from "./components/PublicLayout";
+import ErrorBoundary from "./components/ErrorBoundary";
 import Home from "./pages/Home";
 import About from "./pages/About";
 import Plants from "./pages/Plants";
@@ -46,6 +47,11 @@ import AdminSettings from "./admin/pages/Settings";
 import AdminAdmins from "./admin/pages/Admins";
 import AdminActivityLog from "./admin/pages/ActivityLog";
 import AdminSystemInfo from "./admin/pages/SystemInfo";
+import SystemHealthOverview from "./admin/pages/system-health/Overview";
+import SystemHealthActiveErrors from "./admin/pages/system-health/ActiveErrors";
+import SystemHealthErrorHistory from "./admin/pages/system-health/ErrorHistory";
+import SystemHealthFunctionMonitoring from "./admin/pages/system-health/FunctionMonitoring";
+import SystemHealthSystemLogs from "./admin/pages/system-health/SystemLogs";
 import AccountingOverview from "./admin/pages/accounting/Overview";
 import AccountingSalesOrders from "./admin/pages/accounting/SalesOrders";
 import AccountingSalesOrderDetail from "./admin/pages/accounting/SalesOrderDetail";
@@ -102,7 +108,14 @@ export default function App() {
           <Route path="/plants/:slug" element={<PlantDetail />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/wishlist" element={<Wishlist />} />
-          <Route path="/checkout" element={<Checkout />} />
+          <Route
+            path="/checkout"
+            element={
+              <ErrorBoundary moduleName="Checkout">
+                <Checkout />
+              </ErrorBoundary>
+            }
+          />
           <Route path="/account" element={<Account />} />
           <Route path="/addresses" element={<Addresses />} />
           <Route path="/orders" element={<Orders />} />
@@ -145,44 +158,49 @@ export default function App() {
           <Route path="admins" element={<AdminAdmins />} />
           <Route path="developer/activity-log" element={<AdminActivityLog />} />
           <Route path="developer/system-info" element={<AdminSystemInfo />} />
-          <Route path="accounting" element={<AccountingOverview />} />
-          <Route path="accounting/sales-orders" element={<AccountingSalesOrders />} />
-          <Route path="accounting/sales-orders/:id" element={<AccountingSalesOrderDetail />} />
-          <Route path="accounting/invoices" element={<AccountingInvoices />} />
-          <Route path="accounting/invoices/:id" element={<AccountingInvoiceDetail />} />
-          <Route path="accounting/parties" element={<AccountingParties />} />
-          <Route path="accounting/parties/:id" element={<AccountingPartyProfile />} />
-          <Route path="accounting/chart-of-accounts" element={<AccountingChartOfAccounts />} />
-          <Route path="accounting/tax-rates" element={<AccountingTaxRates />} />
-          <Route path="accounting/purchase-orders" element={<AccountingPurchaseOrders />} />
-          <Route path="accounting/purchase-orders/:id" element={<AccountingPurchaseOrderDetail />} />
-          <Route path="accounting/bills" element={<AccountingBills />} />
-          <Route path="accounting/bills/:id" element={<AccountingBillDetail />} />
-          <Route path="accounting/expenses" element={<AccountingExpenses />} />
-          <Route path="accounting/expenses/:id" element={<AccountingExpenseDetail />} />
-          <Route path="accounting/employees" element={<AccountingEmployees />} />
-          <Route path="accounting/reports" element={<AccountingReports />} />
-          <Route path="accounting/roles" element={<AccountingRoles />} />
-          <Route path="labour" element={<LabourDashboard />} />
-          <Route path="labour/employees" element={<LabourEmployees />} />
-          <Route path="labour/employees/:id" element={<LabourEmployeeDetail />} />
-          <Route path="labour/labour" element={<LabourLabour />} />
-          <Route path="labour/labour/:id" element={<LabourLabourDetail />} />
-          <Route path="labour/todays-work" element={<LabourTodaysWork />} />
-          <Route path="labour/attendance" element={<LabourAttendance />} />
-          <Route path="labour/payroll" element={<LabourPayroll />} />
-          <Route path="labour/payments" element={<LabourPayments />} />
-          <Route path="labour/advances" element={<LabourAdvances />} />
-          <Route path="delivery" element={<DeliveryDashboard />} />
-          <Route path="delivery/deliveries" element={<DeliveryDeliveries />} />
-          <Route path="delivery/deliveries/new" element={<DeliveryCreate />} />
-          <Route path="delivery/deliveries/:id" element={<DeliveryDetail />} />
-          <Route path="delivery/drivers" element={<DeliveryDrivers />} />
-          <Route path="delivery/drivers/:id" element={<DeliveryDriverDetail />} />
-          <Route path="delivery/vehicles" element={<DeliveryVehicles />} />
-          <Route path="delivery/vehicles/:id" element={<DeliveryVehicleDetail />} />
-          <Route path="delivery/trips" element={<DeliveryTrips />} />
-          <Route path="delivery/fuel" element={<DeliveryFuel />} />
+          <Route path="developer/system-health" element={<SystemHealthOverview />} />
+          <Route path="developer/system-health/errors" element={<SystemHealthActiveErrors />} />
+          <Route path="developer/system-health/history" element={<SystemHealthErrorHistory />} />
+          <Route path="developer/system-health/functions" element={<SystemHealthFunctionMonitoring />} />
+          <Route path="developer/system-health/logs" element={<SystemHealthSystemLogs />} />
+          <Route path="accounting" element={<ErrorBoundary moduleName="Accounting"><AccountingOverview /></ErrorBoundary>} />
+          <Route path="accounting/sales-orders" element={<ErrorBoundary moduleName="Accounting"><AccountingSalesOrders /></ErrorBoundary>} />
+          <Route path="accounting/sales-orders/:id" element={<ErrorBoundary moduleName="Accounting"><AccountingSalesOrderDetail /></ErrorBoundary>} />
+          <Route path="accounting/invoices" element={<ErrorBoundary moduleName="Accounting"><AccountingInvoices /></ErrorBoundary>} />
+          <Route path="accounting/invoices/:id" element={<ErrorBoundary moduleName="Accounting"><AccountingInvoiceDetail /></ErrorBoundary>} />
+          <Route path="accounting/parties" element={<ErrorBoundary moduleName="Accounting"><AccountingParties /></ErrorBoundary>} />
+          <Route path="accounting/parties/:id" element={<ErrorBoundary moduleName="Accounting"><AccountingPartyProfile /></ErrorBoundary>} />
+          <Route path="accounting/chart-of-accounts" element={<ErrorBoundary moduleName="Accounting"><AccountingChartOfAccounts /></ErrorBoundary>} />
+          <Route path="accounting/tax-rates" element={<ErrorBoundary moduleName="Accounting"><AccountingTaxRates /></ErrorBoundary>} />
+          <Route path="accounting/purchase-orders" element={<ErrorBoundary moduleName="Accounting"><AccountingPurchaseOrders /></ErrorBoundary>} />
+          <Route path="accounting/purchase-orders/:id" element={<ErrorBoundary moduleName="Accounting"><AccountingPurchaseOrderDetail /></ErrorBoundary>} />
+          <Route path="accounting/bills" element={<ErrorBoundary moduleName="Accounting"><AccountingBills /></ErrorBoundary>} />
+          <Route path="accounting/bills/:id" element={<ErrorBoundary moduleName="Accounting"><AccountingBillDetail /></ErrorBoundary>} />
+          <Route path="accounting/expenses" element={<ErrorBoundary moduleName="Accounting"><AccountingExpenses /></ErrorBoundary>} />
+          <Route path="accounting/expenses/:id" element={<ErrorBoundary moduleName="Accounting"><AccountingExpenseDetail /></ErrorBoundary>} />
+          <Route path="accounting/employees" element={<ErrorBoundary moduleName="Accounting"><AccountingEmployees /></ErrorBoundary>} />
+          <Route path="accounting/reports" element={<ErrorBoundary moduleName="Accounting"><AccountingReports /></ErrorBoundary>} />
+          <Route path="accounting/roles" element={<ErrorBoundary moduleName="Accounting"><AccountingRoles /></ErrorBoundary>} />
+          <Route path="labour" element={<ErrorBoundary moduleName="Labour"><LabourDashboard /></ErrorBoundary>} />
+          <Route path="labour/employees" element={<ErrorBoundary moduleName="Labour"><LabourEmployees /></ErrorBoundary>} />
+          <Route path="labour/employees/:id" element={<ErrorBoundary moduleName="Labour"><LabourEmployeeDetail /></ErrorBoundary>} />
+          <Route path="labour/labour" element={<ErrorBoundary moduleName="Labour"><LabourLabour /></ErrorBoundary>} />
+          <Route path="labour/labour/:id" element={<ErrorBoundary moduleName="Labour"><LabourLabourDetail /></ErrorBoundary>} />
+          <Route path="labour/todays-work" element={<ErrorBoundary moduleName="Labour"><LabourTodaysWork /></ErrorBoundary>} />
+          <Route path="labour/attendance" element={<ErrorBoundary moduleName="Labour"><LabourAttendance /></ErrorBoundary>} />
+          <Route path="labour/payroll" element={<ErrorBoundary moduleName="Labour"><LabourPayroll /></ErrorBoundary>} />
+          <Route path="labour/payments" element={<ErrorBoundary moduleName="Labour"><LabourPayments /></ErrorBoundary>} />
+          <Route path="labour/advances" element={<ErrorBoundary moduleName="Labour"><LabourAdvances /></ErrorBoundary>} />
+          <Route path="delivery" element={<ErrorBoundary moduleName="Delivery"><DeliveryDashboard /></ErrorBoundary>} />
+          <Route path="delivery/deliveries" element={<ErrorBoundary moduleName="Delivery"><DeliveryDeliveries /></ErrorBoundary>} />
+          <Route path="delivery/deliveries/new" element={<ErrorBoundary moduleName="Delivery"><DeliveryCreate /></ErrorBoundary>} />
+          <Route path="delivery/deliveries/:id" element={<ErrorBoundary moduleName="Delivery"><DeliveryDetail /></ErrorBoundary>} />
+          <Route path="delivery/drivers" element={<ErrorBoundary moduleName="Delivery"><DeliveryDrivers /></ErrorBoundary>} />
+          <Route path="delivery/drivers/:id" element={<ErrorBoundary moduleName="Delivery"><DeliveryDriverDetail /></ErrorBoundary>} />
+          <Route path="delivery/vehicles" element={<ErrorBoundary moduleName="Delivery"><DeliveryVehicles /></ErrorBoundary>} />
+          <Route path="delivery/vehicles/:id" element={<ErrorBoundary moduleName="Delivery"><DeliveryVehicleDetail /></ErrorBoundary>} />
+          <Route path="delivery/trips" element={<ErrorBoundary moduleName="Delivery"><DeliveryTrips /></ErrorBoundary>} />
+          <Route path="delivery/fuel" element={<ErrorBoundary moduleName="Delivery"><DeliveryFuel /></ErrorBoundary>} />
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>

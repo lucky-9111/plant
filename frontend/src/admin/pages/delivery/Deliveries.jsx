@@ -17,16 +17,18 @@ export default function Deliveries() {
   const [dateTo, setDateTo] = useState("");
   const [status, setStatus] = useState("");
   const [q, setQ] = useState("");
+  const [loadError, setLoadError] = useState("");
 
   function load() {
     setItems(null);
+    setLoadError("");
     const params = new URLSearchParams();
     if (dateFrom) params.set("date_from", dateFrom);
     if (dateTo) params.set("date_to", dateTo);
     if (status) params.set("status", status);
     if (q) params.set("q", q);
     const query = params.toString() ? `?${params.toString()}` : "";
-    api.get(`/admin/delivery/deliveries${query}`).then(setItems);
+    api.get(`/admin/delivery/deliveries${query}`).then(setItems).catch((err) => setLoadError(err.message || "Could not load deliveries."));
   }
 
   useEffect(load, [dateFrom, dateTo, status, q]);
@@ -63,7 +65,11 @@ export default function Deliveries() {
         <SearchBox value={q} onChange={setQ} placeholder="Search by delivery #, customer, mobile..." />
       </div>
 
-      {!items ? (
+      {loadError ? (
+        <div className="alert alert-error">
+          {loadError} <button type="button" className="btn btn-outline dark" onClick={load}>Retry</button>
+        </div>
+      ) : !items ? (
         <Loading />
       ) : items.length === 0 ? (
         <Empty>No deliveries found for this filter.</Empty>

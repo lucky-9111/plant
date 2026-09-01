@@ -1,13 +1,19 @@
+import logging
 import os
+import time
+import uuid
+from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
 
+from app import api_public
+
 load_dotenv()
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from starlette.middleware.sessions import SessionMiddleware
@@ -16,7 +22,9 @@ from app.accounting.router import router as accounting_router
 from app.delivery.router import router as delivery_router
 from app.labour.router import router as labour_router
 from app.database import Base, SessionLocal, engine
-from app.routers import api_admin, api_admin_analytics, api_customer, api_public
+from app.monitoring.module_map import infer_module
+from app.monitoring.recorder import record_error, record_request_outcome
+from app.routers import api_admin, api_admin_analytics, api_customer, api_system_health
 from app.seed_data import seed_if_empty
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -69,6 +77,12 @@ with engine.connect() as conn:
         conn.commit()
     if "razorpay_signature" not in order_columns:
         conn.execute(text("ALTER TABLE orders ADD COLUMN razorpay_signature VARCHAR(255)"))
+        conn.commit()
+    if "idempotency_key" not in order_columns:
+        # Lets checkout() detect a network-retried submit (same key resubmitted
+        # after the client never saw the first response) and return the
+        # already-created order instead of placing a duplicate one.
+        conn.execute(text("ALTER TABLE orders ADD COLUMN idempotency_key VARCHAR(64)"))
         conn.commit()
 
     # Seedlings & Trays: cart_items needs a nullable variant_id, and its unique
@@ -181,9 +195,56 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+request_logger = logging.getLogger("app.requests")
+
+
+@app.middleware("http")
+async def request_context_middleware(request: Request, call_next):
+    request_id = f"REQ-{datetime.utcnow():%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:4]}"
+    request.state.request_id = request_id
+    start = time.perf_counter()
+
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        # Anything reaching here is a genuinely unhandled bug -- every
+        # `raise HTTPException(...)` in the app (185 call sites) is already
+        # converted to a clean JSONResponse by Starlette's own
+        # ExceptionMiddleware, which sits between the router and this
+        # middleware, so it never lands in this branch.
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        module, sub_module, func_name, endpoint = infer_module(request)
+        request_logger.exception(
+            "unhandled error request_id=%s module=%s function=%s endpoint=%s",
+            request_id, module, func_name, endpoint,
+        )
+        record_error(module, sub_module, func_name, endpoint, request.method, 500, request_id, exc, elapsed_ms)
+        record_request_outcome(module, sub_module, func_name, endpoint, request.method, 500, request_id, elapsed_ms)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "detail": "Something went wrong on our end. Please try again in a moment.",
+                "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": "Something went wrong on our end. Please try again in a moment.",
+                },
+                "request_id": request_id,
+            },
+            headers={"X-Request-ID": request_id},
+        )
+
+    elapsed_ms = (time.perf_counter() - start) * 1000
+    module, sub_module, func_name, endpoint = infer_module(request)
+    record_request_outcome(module, sub_module, func_name, endpoint, request.method, response.status_code, request_id, elapsed_ms)
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+
 app.include_router(api_public.router)
 app.include_router(api_admin.router)
 app.include_router(api_admin_analytics.router)
+app.include_router(api_system_health.router)
 app.include_router(accounting_router)
 app.include_router(labour_router)
 app.include_router(delivery_router)

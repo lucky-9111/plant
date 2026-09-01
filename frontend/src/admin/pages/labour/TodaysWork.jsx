@@ -22,10 +22,12 @@ export default function TodaysWork() {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
 
   function load() {
     setRequirements(null);
-    api.get("/admin/labour/work-requirements").then(setRequirements);
+    setLoadError("");
+    api.get("/admin/labour/work-requirements").then(setRequirements).catch((err) => setLoadError(err.message || "Could not load today's work."));
   }
 
   useEffect(load, []);
@@ -192,7 +194,11 @@ export default function TodaysWork() {
         </button>
       </div>
 
-      {!requirements ? (
+      {loadError ? (
+        <div className="alert alert-error">
+          {loadError} <button type="button" className="btn btn-outline dark" onClick={load}>Retry</button>
+        </div>
+      ) : !requirements ? (
         <Loading />
       ) : requirements.length === 0 ? (
         <Empty>No work requirements yet. Create one to start calling labour.</Empty>

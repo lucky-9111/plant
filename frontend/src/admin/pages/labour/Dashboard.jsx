@@ -7,20 +7,28 @@ const now = new Date();
 
 export default function LabourDashboard() {
   const [today, setToday] = useState(null);
+  const [todayError, setTodayError] = useState("");
   const [periodYear, setPeriodYear] = useState(now.getFullYear());
   const [periodMonth, setPeriodMonth] = useState(now.getMonth() + 1);
   const [monthly, setMonthly] = useState(null);
+  const [monthlyError, setMonthlyError] = useState("");
 
-  useEffect(() => {
-    api.get("/admin/labour/dashboard/today").then(setToday);
-  }, []);
+  function loadToday() {
+    setTodayError("");
+    api.get("/admin/labour/dashboard/today").then(setToday).catch((err) => setTodayError(err.message || "Could not load today's attendance."));
+  }
 
-  useEffect(() => {
+  function loadMonthly() {
     setMonthly(null);
+    setMonthlyError("");
     api
       .get(`/admin/labour/dashboard/monthly-cost?period_year=${periodYear}&period_month=${periodMonth}`)
-      .then(setMonthly);
-  }, [periodYear, periodMonth]);
+      .then(setMonthly)
+      .catch((err) => setMonthlyError(err.message || "Could not load monthly cost."));
+  }
+
+  useEffect(loadToday, []);
+  useEffect(loadMonthly, [periodYear, periodMonth]);
 
   return (
     <div>
@@ -29,7 +37,11 @@ export default function LabourDashboard() {
       </div>
 
       <h2 style={{ fontSize: "1.1rem" }}>Today's Attendance</h2>
-      {!today ? (
+      {todayError ? (
+        <div className="alert alert-error">
+          {todayError} <button type="button" className="btn btn-outline dark" onClick={loadToday}>Retry</button>
+        </div>
+      ) : !today ? (
         <Loading />
       ) : (
         <div className="stat-cards" style={{ marginBottom: 28 }}>
@@ -58,7 +70,11 @@ export default function LabourDashboard() {
           ))}
         </select>
       </div>
-      {!monthly ? (
+      {monthlyError ? (
+        <div className="alert alert-error">
+          {monthlyError} <button type="button" className="btn btn-outline dark" onClick={loadMonthly}>Retry</button>
+        </div>
+      ) : !monthly ? (
         <Loading />
       ) : (
         <div className="stat-cards">

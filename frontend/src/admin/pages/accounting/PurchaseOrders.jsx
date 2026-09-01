@@ -19,11 +19,13 @@ export default function PurchaseOrders() {
   const [form, setForm] = useState({ contact_id: "", order_date: todayDateInput(), notes: "", items: [] });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
 
   function load() {
     setItems(null);
+    setLoadError("");
     const query = q ? `?q=${encodeURIComponent(q)}` : "";
-    api.get(`/admin/accounting/purchase-orders${query}`).then(setItems);
+    api.get(`/admin/accounting/purchase-orders${query}`).then(setItems).catch((err) => setLoadError(err.message || "Could not load purchase orders."));
   }
 
   useEffect(load, [q]);
@@ -149,7 +151,11 @@ export default function PurchaseOrders() {
         <SearchBox value={q} onChange={setQ} placeholder="Search by order # or supplier name..." />
       </div>
 
-      {!items ? (
+      {loadError ? (
+        <div className="alert alert-error">
+          {loadError} <button type="button" className="btn btn-outline dark" onClick={load}>Retry</button>
+        </div>
+      ) : !items ? (
         <Loading />
       ) : items.length === 0 ? (
         <Empty>No purchase orders yet. Create your first one.</Empty>

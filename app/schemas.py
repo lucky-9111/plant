@@ -389,6 +389,7 @@ class CheckoutIn(BaseModel):
     buy_now_plant_id: Optional[int] = None
     buy_now_variant_id: Optional[int] = None
     buy_now_quantity: int = 1
+    idempotency_key: Optional[str] = None
 
 
 class OrderItemOut(BaseModel):

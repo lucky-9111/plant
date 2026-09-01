@@ -317,6 +317,7 @@ class Order(Base):
     razorpay_order_id = Column(String(100), nullable=True, index=True)
     razorpay_payment_id = Column(String(100), nullable=True)
     razorpay_signature = Column(String(255), nullable=True)
+    idempotency_key = Column(String(64), nullable=True, index=True)
 
     delivery_name = Column(String(120), default="")
     delivery_mobile = Column(String(30), default="")

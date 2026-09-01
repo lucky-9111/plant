@@ -22,11 +22,13 @@ export default function Advances() {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
 
   function load() {
     setRows(null);
+    setLoadError("");
     const query = workerType ? `?worker_type=${workerType}` : "";
-    api.get(`/admin/labour/advances${query}`).then(setRows);
+    api.get(`/admin/labour/advances${query}`).then(setRows).catch((err) => setLoadError(err.message || "Could not load advances."));
   }
 
   useEffect(load, [workerType]);
@@ -87,7 +89,11 @@ export default function Advances() {
         </select>
       </div>
 
-      {!rows ? (
+      {loadError ? (
+        <div className="alert alert-error">
+          {loadError} <button type="button" className="btn btn-outline dark" onClick={load}>Retry</button>
+        </div>
+      ) : !rows ? (
         <Loading />
       ) : rows.length === 0 ? (
         <Empty>No advances given yet.</Empty>

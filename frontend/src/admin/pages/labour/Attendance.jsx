@@ -16,34 +16,38 @@ export default function Attendance() {
   const [attendanceMap, setAttendanceMap] = useState({});
   const [draft, setDraft] = useState({});
   const [saving, setSaving] = useState({});
+  const [loadError, setLoadError] = useState("");
 
   function load() {
     setWorkers(null);
+    setLoadError("");
     const workerEndpoint = workerType === "EMPLOYEE" ? "/admin/labour/employees" : "/admin/labour/labour";
     const attendanceEndpoint =
       workerType === "EMPLOYEE"
         ? `/admin/labour/attendance/employees?date_from=${date}&date_to=${date}`
         : `/admin/labour/attendance/labour?date_from=${date}&date_to=${date}`;
 
-    Promise.all([api.get(workerEndpoint), api.get(attendanceEndpoint)]).then(([workerList, attendanceList]) => {
-      const activeWorkers = workerList.filter((w) => w.status === "Active");
-      setWorkers(activeWorkers);
-      const map = {};
-      const initDraft = {};
-      attendanceList.forEach((a) => {
-        const workerId = workerType === "EMPLOYEE" ? a.employee_id : a.labour_id;
-        map[workerId] = a;
-      });
-      activeWorkers.forEach((w) => {
-        const existing = map[w.id];
-        initDraft[w.id] = {
-          status: existing?.status || (workerType === "EMPLOYEE" ? "Present" : "Worked"),
-          overtime_hours: existing?.overtime_hours || 0,
-        };
-      });
-      setAttendanceMap(map);
-      setDraft(initDraft);
-    });
+    Promise.all([api.get(workerEndpoint), api.get(attendanceEndpoint)])
+      .then(([workerList, attendanceList]) => {
+        const activeWorkers = workerList.filter((w) => w.status === "Active");
+        setWorkers(activeWorkers);
+        const map = {};
+        const initDraft = {};
+        attendanceList.forEach((a) => {
+          const workerId = workerType === "EMPLOYEE" ? a.employee_id : a.labour_id;
+          map[workerId] = a;
+        });
+        activeWorkers.forEach((w) => {
+          const existing = map[w.id];
+          initDraft[w.id] = {
+            status: existing?.status || (workerType === "EMPLOYEE" ? "Present" : "Worked"),
+            overtime_hours: existing?.overtime_hours || 0,
+          };
+        });
+        setAttendanceMap(map);
+        setDraft(initDraft);
+      })
+      .catch((err) => setLoadError(err.message || "Could not load attendance."));
   }
 
   useEffect(load, [workerType, date]);
@@ -95,7 +99,11 @@ export default function Attendance() {
         />
       </div>
 
-      {!workers ? (
+      {loadError ? (
+        <div className="alert alert-error">
+          {loadError} <button type="button" className="btn btn-outline dark" onClick={load}>Retry</button>
+        </div>
+      ) : !workers ? (
         <Loading />
       ) : workers.length === 0 ? (
         <Empty>No active workers of this type yet.</Empty>

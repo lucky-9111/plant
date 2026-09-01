@@ -6,6 +6,7 @@ import urllib.request
 from datetime import datetime
 from email.mime.text import MIMEText
 
+from app.monitoring.recorder import record_error
 from app.settings_helper import get_settings
 
 
@@ -46,6 +47,7 @@ def send_email(to_email: str, subject: str, body: str) -> None:
             server.sendmail(sender, [to_email], msg.as_string())
     except Exception as exc:  # noqa: BLE001 - notifications must never break the request
         print(f"[email] Failed to send to {to_email}: {exc}")
+        record_error("External APIs", "SMTP", "send_email", "external:smtp", "EXTERNAL", 502, None, exc)
 
 
 def send_whatsapp_admin_alert(message: str) -> None:
@@ -62,6 +64,7 @@ def send_whatsapp_admin_alert(message: str) -> None:
             response.read()
     except Exception as exc:  # noqa: BLE001 - notifications must never break the request
         print(f"[whatsapp] Failed to send alert: {exc}")
+        record_error("External APIs", "WhatsApp", "send_whatsapp_admin_alert", "external:whatsapp", "EXTERNAL", 502, None, exc)
 
 
 def notify_order_status(order, old_status: str | None, new_status: str) -> None:

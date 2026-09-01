@@ -1,6 +1,7 @@
 import { Navigate, NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Loading } from "../components/Loading";
+import ErrorBoundary from "../components/ErrorBoundary";
 import logoImg from "../assets/logo.png";
 
 const NAV = [
@@ -26,6 +27,11 @@ const NAV = [
 const DEVELOPER_NAV = [
   { to: "/admin/developer/activity-log", label: "Activity Log" },
   { to: "/admin/developer/system-info", label: "System Info" },
+  { to: "/admin/developer/system-health", label: "System Health", end: true },
+  { to: "/admin/developer/system-health/errors", label: "Active Errors" },
+  { to: "/admin/developer/system-health/history", label: "Error History" },
+  { to: "/admin/developer/system-health/functions", label: "Function Monitoring" },
+  { to: "/admin/developer/system-health/logs", label: "System Logs" },
 ];
 
 const ACCOUNTING_NAV = [
@@ -106,7 +112,7 @@ export default function AdminLayout() {
             <>
               <div className="admin-nav-heading">Developer</div>
               {DEVELOPER_NAV.map((item) => (
-                <NavLink key={item.to} to={item.to}>
+                <NavLink key={item.to} to={item.to} end={item.end}>
                   {item.label}
                 </NavLink>
               ))}
@@ -133,7 +139,9 @@ export default function AdminLayout() {
           </span>
         </div>
         <div className="admin-content">
-          <Outlet />
+          <ErrorBoundary moduleName="Admin">
+            <Outlet />
+          </ErrorBoundary>
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useLocation } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
@@ -8,6 +8,12 @@ import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 const MOBILE_PATTERN = /^[6-9]\d{9}$/;
 const RAZORPAY_SCRIPT_SRC = "https://checkout.razorpay.com/v1/checkout.js";
+
+// Appends the backend's Request ID to a user-facing error message when one
+// was returned, so a customer can quote it to support for faster lookup.
+function withReference(message, err) {
+  return err?.requestId ? `${message} (Reference: ${err.requestId})` : message;
+}
 
 let razorpayScriptPromise = null;
 function loadRazorpayScript() {
@@ -117,6 +123,12 @@ export default function Checkout() {
   const [paymentError, setPaymentError] = useState("");
   const [payingNow, setPayingNow] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+
+  // Generated once per checkout-form mount, never regenerated on retry, so a
+  // network retry of the same submit resolves to the same order server-side
+  // instead of placing a duplicate one (see checkout()'s idempotency_key
+  // lookup in app/routers/api_customer.py).
+  const idempotencyKeyRef = useRef(crypto.randomUUID());
 
   const [addresses, setAddresses] = useState([]);
   const [selectedAddressId, setSelectedAddressId] = useState(null);
@@ -256,8 +268,11 @@ export default function Checkout() {
           if (!isBuyNow) refreshCart();
         } catch (err) {
           setPaymentError(
-            err.message ||
-              "We couldn't verify your payment. If money was deducted, please contact support with your order ID."
+            withReference(
+              err.message ||
+                "We couldn't verify your payment. If money was deducted, please contact support with your order ID.",
+              err
+            )
           );
         } finally {
           setPayingNow(false);
@@ -302,7 +317,12 @@ export default function Checkout() {
     setError("");
     setPaymentError("");
     try {
-      const payload = { ...form, delivery_mobile: mobile, payment_method: paymentMethod };
+      const payload = {
+        ...form,
+        delivery_mobile: mobile,
+        payment_method: paymentMethod,
+        idempotency_key: idempotencyKeyRef.current,
+      };
       if (isBuyNow) {
         payload.buy_now_plant_id = buyNowRequest.plantId;
         payload.buy_now_variant_id = buyNowRequest.variantId ?? null;
@@ -317,7 +337,7 @@ export default function Checkout() {
         if (!isBuyNow) refreshCart();
       }
     } catch (err) {
-      setError(err.message || "Could not place your order. Please try again.");
+      setError(withReference(err.message || "Could not place your order. Please try again.", err));
     } finally {
       setSubmitting(false);
     }

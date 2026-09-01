@@ -10,14 +10,16 @@ export default function Bills() {
   const [items, setItems] = useState(null);
   const [status, setStatus] = useState("");
   const [q, setQ] = useState("");
+  const [error, setError] = useState("");
 
   function load() {
     setItems(null);
+    setError("");
     const params = new URLSearchParams();
     if (status) params.set("status", status);
     if (q) params.set("q", q);
     const query = params.toString() ? `?${params.toString()}` : "";
-    api.get(`/admin/accounting/bills${query}`).then(setItems);
+    api.get(`/admin/accounting/bills${query}`).then(setItems).catch((err) => setError(err.message || "Could not load bills."));
   }
 
   useEffect(load, [status, q]);
@@ -40,7 +42,11 @@ export default function Bills() {
         <SearchBox value={q} onChange={setQ} placeholder="Search by bill # or supplier..." />
       </div>
 
-      {!items ? (
+      {error ? (
+        <div className="alert alert-error">
+          {error} <button type="button" className="btn btn-outline dark" onClick={load}>Retry</button>
+        </div>
+      ) : !items ? (
         <Loading />
       ) : items.length === 0 ? (
         <Empty>No bills yet. Convert a Purchase Order, or log one directly from the Purchases page.</Empty>

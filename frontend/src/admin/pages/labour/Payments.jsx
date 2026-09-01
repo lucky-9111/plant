@@ -24,11 +24,13 @@ export default function Payments() {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
 
   function load() {
     setRows(null);
+    setLoadError("");
     const query = workerType ? `?worker_type=${workerType}` : "";
-    api.get(`/admin/labour/payments${query}`).then(setRows);
+    api.get(`/admin/labour/payments${query}`).then(setRows).catch((err) => setLoadError(err.message || "Could not load payments."));
   }
 
   useEffect(load, [workerType]);
@@ -93,7 +95,11 @@ export default function Payments() {
         </select>
       </div>
 
-      {!rows ? (
+      {loadError ? (
+        <div className="alert alert-error">
+          {loadError} <button type="button" className="btn btn-outline dark" onClick={load}>Retry</button>
+        </div>
+      ) : !rows ? (
         <Loading />
       ) : rows.length === 0 ? (
         <Empty>No payments recorded yet.</Empty>

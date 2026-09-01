@@ -18,11 +18,13 @@ export default function Trips() {
   const [endKm, setEndKm] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
 
   function load() {
     setTrips(null);
+    setLoadError("");
     const query = status ? `?status=${status}` : "";
-    api.get(`/admin/delivery/trips${query}`).then(setTrips);
+    api.get(`/admin/delivery/trips${query}`).then(setTrips).catch((err) => setLoadError(err.message || "Could not load trips."));
   }
 
   useEffect(load, [status]);
@@ -91,7 +93,11 @@ export default function Trips() {
         </select>
       </div>
 
-      {!trips ? (
+      {loadError ? (
+        <div className="alert alert-error">
+          {loadError} <button type="button" className="btn btn-outline dark" onClick={load}>Retry</button>
+        </div>
+      ) : !trips ? (
         <Loading />
       ) : trips.length === 0 ? (
         <Empty>No trips yet.</Empty>

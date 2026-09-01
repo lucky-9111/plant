@@ -476,6 +476,18 @@ def checkout(
     if payload.payment_method not in PAYMENT_METHODS:
         raise HTTPException(status_code=400, detail="Invalid payment method")
 
+    if payload.idempotency_key:
+        # A network retry (client never saw the first response, e.g. after
+        # `openRazorpayCheckout`'s script tag fails to load) must not create
+        # a second order/charge -- return the order that was already placed.
+        existing = (
+            db.query(Order)
+            .filter(Order.customer_id == customer_id, Order.idempotency_key == payload.idempotency_key)
+            .first()
+        )
+        if existing:
+            return get_or_404_order(db, existing.id, customer_id)
+
     buy_now = payload.buy_now_plant_id is not None
     clear_cart = not buy_now
 
@@ -536,6 +548,7 @@ def checkout(
         delivery_city=payload.delivery_city.strip(),
         delivery_state=payload.delivery_state.strip(),
         delivery_pincode=payload.delivery_pincode.strip(),
+        idempotency_key=payload.idempotency_key,
     )
     db.add(order)
     db.flush()
