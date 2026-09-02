@@ -218,11 +218,6 @@ class InquiryStatusIn(BaseModel):
     status: str
 
 
-class LoginIn(BaseModel):
-    username: str
-    password: str
-
-
 class UnifiedLoginIn(BaseModel):
     identifier: str
     password: str
@@ -235,12 +230,15 @@ class AdminUserOut(BaseModel):
     username: str
     role: str
     created_at: Optional[datetime] = None
+    is_active: bool = True
+    custom_role_id: Optional[int] = None
 
 
 class AdminUserCreateIn(BaseModel):
     username: str
     password: str
     role: str = "admin"
+    custom_role_id: Optional[int] = None
 
 
 class AdminPasswordResetIn(BaseModel):
@@ -249,6 +247,7 @@ class AdminPasswordResetIn(BaseModel):
 
 class AdminRoleIn(BaseModel):
     role: str
+    custom_role_id: Optional[int] = None
 
 
 class ActivityLogOut(BaseModel):
@@ -264,6 +263,101 @@ class ActivityLogOut(BaseModel):
 class SystemInfoOut(BaseModel):
     counts: dict[str, int]
     session_secret_is_default: bool
+
+
+# ---------- Developer Dashboard RBAC ----------
+
+
+class RolePermissionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    module: str
+    can_view: bool
+    can_create: bool
+    can_edit: bool
+    can_delete: bool
+    can_export: bool
+    can_print: bool
+    can_approve: bool
+    can_cancel: bool
+
+
+class RolePermissionIn(BaseModel):
+    module: str
+    can_view: bool = False
+    can_create: bool = False
+    can_edit: bool = False
+    can_delete: bool = False
+    can_export: bool = False
+    can_print: bool = False
+    can_approve: bool = False
+    can_cancel: bool = False
+
+
+class RoleOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    description: str
+    is_system: bool
+    created_by: str
+    created_at: datetime
+    updated_at: datetime
+    user_count: int = 0
+    permissions: list[RolePermissionOut] = []
+
+
+class RoleCreateIn(BaseModel):
+    name: str
+    description: str = ""
+
+
+class RoleUpdateIn(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    permissions: Optional[list[RolePermissionIn]] = None
+
+
+class PermissionOverrideOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    module: str
+    action: str
+    effect: str
+    granted_by: str
+    reason: str
+    created_at: datetime
+    expires_at: Optional[datetime] = None
+
+
+class PermissionOverrideIn(BaseModel):
+    module: str
+    action: str
+    effect: str  # "ALLOW" | "DENY"
+    reason: str = ""
+    expires_at: Optional[datetime] = None
+
+
+class AdminSessionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    username: str
+    ip_address: str
+    user_agent: str
+    created_at: datetime
+    last_seen_at: datetime
+    revoked_at: Optional[datetime] = None
+    is_current: bool = False
+
+
+class LoginAttemptOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    identifier: str
+    ip_address: str
+    user_agent: str
+    success: bool
+    reason: str
+    created_at: datetime
 
 
 class SettingsIn(BaseModel):

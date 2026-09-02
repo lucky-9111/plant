@@ -11,7 +11,7 @@ from app import api_public
 
 load_dotenv()
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -24,7 +24,9 @@ from app.labour.router import router as labour_router
 from app.database import Base, SessionLocal, engine
 from app.monitoring.module_map import infer_module
 from app.monitoring.recorder import record_error, record_request_outcome
-from app.routers import api_admin, api_admin_analytics, api_customer, api_system_health
+from app.permissions import require_permission
+from app.rbac_seed import seed_rbac_defaults
+from app.routers import api_admin, api_admin_analytics, api_admin_rbac, api_customer, api_system_health
 from app.seed_data import seed_if_empty
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -59,6 +61,24 @@ with engine.connect() as conn:
     conn.execute(text("UPDATE admin_users SET role = 'developer' WHERE username = 'lucky'"))
     conn.execute(text("UPDATE admin_users SET role = 'developer' WHERE username = 'admin'"))
     conn.commit()
+
+    # Developer Dashboard RBAC: is_active defaults to 1, so every pre-existing
+    # admin row is automatically backfilled to "active" -- nobody who could
+    # log in before this column existed is locked out by its addition.
+    if "is_active" not in admin_columns:
+        conn.execute(text("ALTER TABLE admin_users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1"))
+        conn.commit()
+    if "locked_until" not in admin_columns:
+        conn.execute(text("ALTER TABLE admin_users ADD COLUMN locked_until DATETIME"))
+        conn.commit()
+    if "failed_login_attempts" not in admin_columns:
+        conn.execute(text("ALTER TABLE admin_users ADD COLUMN failed_login_attempts INTEGER NOT NULL DEFAULT 0"))
+        conn.commit()
+    if "custom_role_id" not in admin_columns:
+        # Nullable, stays NULL for every pre-existing row (they're
+        # "admin"/"developer", never "custom") -- only used going forward.
+        conn.execute(text("ALTER TABLE admin_users ADD COLUMN custom_role_id INTEGER"))
+        conn.commit()
 
     customer_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(customers)"))}
     if "reset_token" not in customer_columns:
@@ -162,6 +182,7 @@ with engine.connect() as conn:
         conn.commit()
 
 seed_if_empty(SessionLocal)
+seed_rbac_defaults(SessionLocal)
 
 app = FastAPI(title="Aaiji Nursery")
 
@@ -243,11 +264,20 @@ async def request_context_middleware(request: Request, call_next):
 
 app.include_router(api_public.router)
 app.include_router(api_admin.router)
-app.include_router(api_admin_analytics.router)
+# Coarse module-VIEW enforcement (Developer Dashboard RBAC, Phase 4): every
+# route in these already-standalone routers now additionally requires
+# module-level VIEW permission -- the outer "can this admin enter this
+# module at all" boundary. This changes nothing for existing admin/
+# developer/super_access accounts (their seeded roles grant full VIEW
+# access to every module); it only actually restricts a Custom role that
+# wasn't given VIEW on that module. The existing accounting_role-based
+# require_roles() write-gating inside these modules is untouched.
+app.include_router(api_admin_analytics.router, dependencies=[Depends(require_permission("analytics", "VIEW"))])
+app.include_router(api_admin_rbac.router)
 app.include_router(api_system_health.router)
-app.include_router(accounting_router)
-app.include_router(labour_router)
-app.include_router(delivery_router)
+app.include_router(accounting_router, dependencies=[Depends(require_permission("accounting", "VIEW"))])
+app.include_router(labour_router, dependencies=[Depends(require_permission("labour", "VIEW"))])
+app.include_router(delivery_router, dependencies=[Depends(require_permission("delivery", "VIEW"))])
 app.include_router(api_customer.router)
 
 if FRONTEND_DIST.exists():

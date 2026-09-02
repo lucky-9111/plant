@@ -1,13 +1,19 @@
+import secrets
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload, selectinload
 
+from app.audit import LOGIN_LOCKED_OUT, record_admin_audit
 from app.auth import verify_password
 from app.database import get_db
+from app.deps import get_current_admin
+from app.permissions import get_permissions_map
 from app.models import (
     FAQ,
+    AdminSession,
     AdminUser,
     BlogPost,
     Category,
@@ -15,6 +21,7 @@ from app.models import (
     CustomerActivityLog,
     GalleryImage,
     Inquiry,
+    LoginAttempt,
     Order,
     OrderItem,
     Plant,
@@ -39,6 +46,16 @@ from app.schemas import (
 from app.settings_helper import get_settings
 
 router = APIRouter(prefix="/api")
+
+# Admin login lockout (Developer Dashboard RBAC). Not yet configurable via
+# SiteSetting -- deferred to a later polish pass, same reuse pattern as
+# system_health_retention_days.
+MAX_FAILED_LOGIN_ATTEMPTS = 5
+LOCKOUT_MINUTES = 15
+
+
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client else ""
 
 
 @router.get("/settings")
@@ -264,15 +281,62 @@ def create_inquiry(payload: InquiryIn, db: Session = Depends(get_db)):
 @router.post("/auth/login")
 def unified_login(payload: UnifiedLoginIn, request: Request, db: Session = Depends(get_db)):
     identifier = payload.identifier.strip()
+    ip_address = _client_ip(request)
+    user_agent = request.headers.get("user-agent", "")[:300]
+
+    def _record_attempt(success: bool, reason: str = ""):
+        db.add(
+            LoginAttempt(
+                identifier=identifier, ip_address=ip_address, user_agent=user_agent, success=success, reason=reason
+            )
+        )
 
     admin = db.query(AdminUser).filter(AdminUser.username == identifier).first()
     if admin:
-        if not verify_password(payload.password, admin.hashed_password):
+        if admin.locked_until and admin.locked_until > datetime.utcnow():
+            _record_attempt(False, "locked")
+            db.commit()
+            raise HTTPException(
+                status_code=403, detail="Account temporarily locked due to repeated failed logins. Try again later."
+            )
+        if not admin.is_active:
+            _record_attempt(False, "inactive")
+            db.commit()
             raise HTTPException(status_code=401, detail="Invalid email or password")
+        if not verify_password(payload.password, admin.hashed_password):
+            admin.failed_login_attempts += 1
+            reason = "bad_password"
+            if admin.failed_login_attempts >= MAX_FAILED_LOGIN_ATTEMPTS:
+                admin.locked_until = datetime.utcnow() + timedelta(minutes=LOCKOUT_MINUTES)
+                reason = "locked"
+                record_admin_audit(
+                    admin.username, LOGIN_LOCKED_OUT, {"failed_attempts": admin.failed_login_attempts}
+                )
+            _record_attempt(False, reason)
+            db.commit()
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+
+        admin.failed_login_attempts = 0
+        admin.locked_until = None
         request.session["admin_username"] = admin.username
         request.session.pop("customer_id", None)
+
+        session_token = secrets.token_hex(32)
+        db.add(
+            AdminSession(
+                session_token=session_token,
+                admin_user_id=admin.id,
+                username=admin.username,
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
+        )
+        request.session["admin_session_id"] = session_token
+
+        _record_attempt(True)
         log_activity(db, admin.username, "login")
-        return {"type": admin.role, "username": admin.username}
+        db.commit()
+        return {"type": admin.role, "username": admin.username, "permissions": get_permissions_map(db, admin)}
 
     customer_candidates = (
         db.query(Customer)
@@ -285,27 +349,45 @@ def unified_login(payload: UnifiedLoginIn, request: Request, db: Session = Depen
     if customer:
         request.session["customer_id"] = customer.id
         request.session.pop("admin_username", None)
+        _record_attempt(True)
         db.add(CustomerActivityLog(customer_id=customer.id, action="login"))
         db.commit()
         return {"type": "customer", "id": customer.id, "name": customer.name, "email": customer.email}
 
+    _record_attempt(False, "invalid_credentials")
+    db.commit()
     raise HTTPException(status_code=401, detail="Invalid email or password")
 
 
 @router.post("/auth/logout")
-def unified_logout(request: Request):
+def unified_logout(request: Request, db: Session = Depends(get_db)):
+    admin_username = request.session.get("admin_username")
+    session_token = request.session.get("admin_session_id")
+    if admin_username and session_token:
+        admin_session = db.query(AdminSession).filter(AdminSession.session_token == session_token).first()
+        if admin_session and admin_session.revoked_at is None:
+            admin_session.revoked_at = datetime.utcnow()
+            admin_session.revoked_by = admin_username
+            admin_session.revoke_reason = "logout"
+            db.commit()
+
     request.session.pop("admin_username", None)
     request.session.pop("customer_id", None)
+    request.session.pop("admin_session_id", None)
     return {"ok": True}
 
 
 @router.get("/auth/me")
 def unified_me(request: Request, db: Session = Depends(get_db)):
-    admin_username = request.session.get("admin_username")
+    try:
+        admin_username = get_current_admin(request, db)
+    except HTTPException:
+        admin_username = None
+
     if admin_username:
         admin = db.query(AdminUser).filter(AdminUser.username == admin_username).first()
         if admin:
-            return {"type": admin.role, "username": admin.username}
+            return {"type": admin.role, "username": admin.username, "permissions": get_permissions_map(db, admin)}
 
     customer_id = request.session.get("customer_id")
     if customer_id:

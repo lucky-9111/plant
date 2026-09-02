@@ -4,28 +4,36 @@ import { Loading } from "../components/Loading";
 import ErrorBoundary from "../components/ErrorBoundary";
 import logoImg from "../assets/logo.png";
 
+// `module: null` means always visible to any logged-in admin (e.g. the
+// dashboard landing page). Everything else is filtered through
+// hasPermission(module) below -- for the legacy "admin"/"developer" roles
+// and "super_access" this hides nothing (their seeded roles grant full
+// business access), it only actually restricts a "custom" role.
 const NAV = [
-  { to: "/admin", label: "Dashboard", end: true },
-  { to: "/admin/analytics", label: "Analytics" },
-  { to: "/admin/orders", label: "Orders" },
-  { to: "/admin/categories", label: "Categories" },
-  { to: "/admin/plants", label: "Plants" },
-  { to: "/admin/purchases", label: "Purchases" },
-  { to: "/admin/services", label: "Services" },
-  { to: "/admin/pricing-plans", label: "Pricing Plans" },
-  { to: "/admin/faqs", label: "FAQs" },
-  { to: "/admin/testimonials", label: "Testimonials" },
-  { to: "/admin/gallery", label: "Gallery" },
-  { to: "/admin/blog", label: "Blog" },
-  { to: "/admin/inquiries", label: "Inquiries" },
-  { to: "/admin/customers", label: "Customers" },
-  { to: "/admin/customer-logs", label: "Customer Logs" },
-  { to: "/admin/settings", label: "Site Settings" },
-  { to: "/admin/admins", label: "Admins" },
+  { to: "/admin", label: "Dashboard", end: true, module: null },
+  { to: "/admin/analytics", label: "Analytics", module: "analytics" },
+  { to: "/admin/orders", label: "Orders", module: "orders" },
+  { to: "/admin/categories", label: "Categories", module: "products" },
+  { to: "/admin/plants", label: "Plants", module: "products" },
+  { to: "/admin/purchases", label: "Purchases", module: "products" },
+  { to: "/admin/services", label: "Services", module: "website" },
+  { to: "/admin/pricing-plans", label: "Pricing Plans", module: "website" },
+  { to: "/admin/faqs", label: "FAQs", module: "website" },
+  { to: "/admin/testimonials", label: "Testimonials", module: "website" },
+  { to: "/admin/gallery", label: "Gallery", module: "website" },
+  { to: "/admin/blog", label: "Blog", module: "website" },
+  { to: "/admin/inquiries", label: "Inquiries", module: "customers" },
+  { to: "/admin/customers", label: "Customers", module: "customers" },
+  { to: "/admin/customer-logs", label: "Customer Logs", module: "customers" },
+  { to: "/admin/settings", label: "Site Settings", module: "website" },
+  { to: "/admin/admins", label: "Admins", module: "users_roles" },
 ];
 
 const DEVELOPER_NAV = [
   { to: "/admin/developer/activity-log", label: "Activity Log" },
+  { to: "/admin/developer/roles-permissions", label: "Roles & Permissions" },
+  { to: "/admin/developer/sessions", label: "Sessions" },
+  { to: "/admin/developer/login-attempts", label: "Login Attempts" },
   { to: "/admin/developer/system-info", label: "System Info" },
   { to: "/admin/developer/system-health", label: "System Health", end: true },
   { to: "/admin/developer/system-health/errors", label: "Active Errors" },
@@ -35,42 +43,57 @@ const DEVELOPER_NAV = [
 ];
 
 const ACCOUNTING_NAV = [
-  { to: "/admin/accounting", label: "Overview", end: true },
-  { to: "/admin/accounting/sales-orders", label: "Sales Orders" },
-  { to: "/admin/accounting/invoices", label: "Invoices" },
-  { to: "/admin/accounting/purchase-orders", label: "Purchase Orders" },
-  { to: "/admin/accounting/bills", label: "Bills" },
-  { to: "/admin/accounting/expenses", label: "Expenses" },
-  { to: "/admin/accounting/parties", label: "Parties" },
-  { to: "/admin/accounting/employees", label: "Employees" },
-  { to: "/admin/accounting/reports", label: "Reports" },
-  { to: "/admin/accounting/roles", label: "Roles" },
-  { to: "/admin/accounting/chart-of-accounts", label: "Chart of Accounts" },
-  { to: "/admin/accounting/tax-rates", label: "Tax Rates" },
+  { to: "/admin/accounting", label: "Overview", end: true, module: "accounting" },
+  { to: "/admin/accounting/sales-orders", label: "Sales Orders", module: "accounting" },
+  { to: "/admin/accounting/invoices", label: "Invoices", module: "accounting" },
+  { to: "/admin/accounting/purchase-orders", label: "Purchase Orders", module: "accounting" },
+  { to: "/admin/accounting/bills", label: "Bills", module: "accounting" },
+  { to: "/admin/accounting/expenses", label: "Expenses", module: "accounting" },
+  { to: "/admin/accounting/parties", label: "Parties", module: "accounting" },
+  { to: "/admin/accounting/employees", label: "Employees", module: "accounting" },
+  { to: "/admin/accounting/reports", label: "Reports", module: "accounting" },
+  { to: "/admin/accounting/roles", label: "Roles", module: "accounting" },
+  { to: "/admin/accounting/chart-of-accounts", label: "Chart of Accounts", module: "accounting" },
+  { to: "/admin/accounting/tax-rates", label: "Tax Rates", module: "accounting" },
 ];
 
 const WORKFORCE_NAV = [
-  { to: "/admin/labour", label: "Dashboard", end: true },
-  { to: "/admin/labour/employees", label: "Employees" },
-  { to: "/admin/labour/labour", label: "Labour" },
-  { to: "/admin/labour/todays-work", label: "Today's Work" },
-  { to: "/admin/labour/attendance", label: "Attendance" },
-  { to: "/admin/labour/payroll", label: "Payroll" },
-  { to: "/admin/labour/payments", label: "Payments" },
-  { to: "/admin/labour/advances", label: "Advances" },
+  { to: "/admin/labour", label: "Dashboard", end: true, module: "labour" },
+  { to: "/admin/labour/employees", label: "Employees", module: "labour" },
+  { to: "/admin/labour/labour", label: "Labour", module: "labour" },
+  { to: "/admin/labour/todays-work", label: "Today's Work", module: "labour" },
+  { to: "/admin/labour/attendance", label: "Attendance", module: "labour" },
+  { to: "/admin/labour/payroll", label: "Payroll", module: "labour" },
+  { to: "/admin/labour/payments", label: "Payments", module: "labour" },
+  { to: "/admin/labour/advances", label: "Advances", module: "labour" },
 ];
 
 const DELIVERY_NAV = [
-  { to: "/admin/delivery", label: "Dashboard", end: true },
-  { to: "/admin/delivery/deliveries", label: "Delivery History" },
-  { to: "/admin/delivery/drivers", label: "Drivers" },
-  { to: "/admin/delivery/vehicles", label: "Vehicles" },
-  { to: "/admin/delivery/trips", label: "Trips" },
-  { to: "/admin/delivery/fuel", label: "Fuel / Petrol" },
+  { to: "/admin/delivery", label: "Dashboard", end: true, module: "delivery" },
+  { to: "/admin/delivery/deliveries", label: "Delivery History", module: "delivery" },
+  { to: "/admin/delivery/drivers", label: "Drivers", module: "delivery" },
+  { to: "/admin/delivery/vehicles", label: "Vehicles", module: "delivery" },
+  { to: "/admin/delivery/trips", label: "Trips", module: "delivery" },
+  { to: "/admin/delivery/fuel", label: "Fuel / Petrol", module: "delivery" },
 ];
 
+function NavGroup({ heading, items, hasPermission }) {
+  const visible = items.filter((item) => item.module == null || hasPermission(item.module));
+  if (visible.length === 0) return null;
+  return (
+    <>
+      {heading && <div className="admin-nav-heading">{heading}</div>}
+      {visible.map((item) => (
+        <NavLink key={item.to} to={item.to} end={item.end}>
+          {item.label}
+        </NavLink>
+      ))}
+    </>
+  );
+}
+
 export default function AdminLayout() {
-  const { username, role, logout } = useAuth();
+  const { username, role, hasPermission, logout } = useAuth();
 
   if (username === undefined) return <Loading />;
   if (username === null) return <Navigate to="/login" replace />;
@@ -85,29 +108,10 @@ export default function AdminLayout() {
           Aaiji Nursery
         </div>
         <nav className="admin-nav">
-          {NAV.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.end}>
-              {item.label}
-            </NavLink>
-          ))}
-          <div className="admin-nav-heading">Accounting</div>
-          {ACCOUNTING_NAV.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.end}>
-              {item.label}
-            </NavLink>
-          ))}
-          <div className="admin-nav-heading">Employees & Labour</div>
-          {WORKFORCE_NAV.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.end}>
-              {item.label}
-            </NavLink>
-          ))}
-          <div className="admin-nav-heading">Delivery Management</div>
-          {DELIVERY_NAV.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.end}>
-              {item.label}
-            </NavLink>
-          ))}
+          <NavGroup items={NAV} hasPermission={hasPermission} />
+          <NavGroup heading="Accounting" items={ACCOUNTING_NAV} hasPermission={hasPermission} />
+          <NavGroup heading="Employees & Labour" items={WORKFORCE_NAV} hasPermission={hasPermission} />
+          <NavGroup heading="Delivery Management" items={DELIVERY_NAV} hasPermission={hasPermission} />
           {role === "developer" && (
             <>
               <div className="admin-nav-heading">Developer</div>

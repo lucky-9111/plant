@@ -207,12 +207,25 @@ class AdminUser(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(80), unique=True, nullable=False)
     hashed_password = Column(String(200), nullable=False)
+    # "developer" | "super_access" | "admin" | "custom". Widened (Developer
+    # Dashboard RBAC phase) from the original "admin"/"developer" pair --
+    # this column was never DB-constrained, only checked in application
+    # code, so every existing `role == "developer"` check keeps working
+    # unchanged for the two original values.
     role = Column(String(20), nullable=False, default="admin")
     created_at = Column(DateTime, default=datetime.utcnow)
     # Accounting module (Phase 4): a separate permission axis from `role`
     # above (which only governs Website Management / developer access).
     # NULL means "not yet assigned" -- treated as Viewer everywhere it's read.
     accounting_role = Column(String(20), nullable=True)
+
+    # --- Developer Dashboard RBAC (module-level permissions, sessions, lockout) ---
+    is_active = Column(Boolean, nullable=False, default=True)
+    locked_until = Column(DateTime, nullable=True)
+    failed_login_attempts = Column(Integer, nullable=False, default=0)
+    # Only meaningful when role == "custom" -- points at the Role row whose
+    # RolePermission matrix defines this admin's module-level access.
+    custom_role_id = Column(Integer, ForeignKey("roles.id"), nullable=True)
 
 
 class AdminActivityLog(Base):
@@ -221,8 +234,120 @@ class AdminActivityLog(Base):
     id = Column(Integer, primary_key=True, index=True)
     admin_username = Column(String(80), nullable=False)
     action = Column(String(50), nullable=False)
-    detail = Column(String(200), default="")
+    # Was String(200); widened to Text so RBAC audit entries (role/permission
+    # changes) can store a JSON before/after diff. SQLite gives VARCHAR(200)
+    # and TEXT identical storage affinity, so no ALTER TABLE is needed for
+    # this change -- existing rows are read back exactly as before.
+    detail = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Role(Base):
+    """A Developer-defined role governing module-level access (VIEW/CREATE/
+    EDIT/DELETE/EXPORT/PRINT/APPROVE/CANCEL per module) for `custom`-role
+    AdminUsers, plus the two seeded system rows ("Admin (Default)" and
+    "Super Access") used to look up their matrices uniformly. This axis is
+    layered ON TOP OF -- not a replacement for -- the existing
+    `accounting_role` axis, which keeps governing fine-grained writes inside
+    Accounting/Delivery/Labour exactly as before."""
+
+    __tablename__ = "roles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(80), unique=True, nullable=False)
+    description = Column(Text, default="")
+    is_system = Column(Boolean, nullable=False, default=False)
+    created_by = Column(String(80), default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    permissions = relationship("RolePermission", back_populates="role", cascade="all, delete-orphan")
+
+
+class RolePermission(Base):
+    """One row per (role, module): the module-level action flags a member
+    of that role is granted. Absence of a row for a given module means no
+    access to that module at all (default deny)."""
+
+    __tablename__ = "role_permissions"
+    __table_args__ = (UniqueConstraint("role_id", "module", name="uq_role_module"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    role_id = Column(Integer, ForeignKey("roles.id"), nullable=False, index=True)
+    module = Column(String(40), nullable=False)
+
+    can_view = Column(Boolean, nullable=False, default=False)
+    can_create = Column(Boolean, nullable=False, default=False)
+    can_edit = Column(Boolean, nullable=False, default=False)
+    can_delete = Column(Boolean, nullable=False, default=False)
+    can_export = Column(Boolean, nullable=False, default=False)
+    can_print = Column(Boolean, nullable=False, default=False)
+    can_approve = Column(Boolean, nullable=False, default=False)
+    can_cancel = Column(Boolean, nullable=False, default=False)
+
+    role = relationship("Role", back_populates="permissions")
+
+
+class UserPermissionOverride(Base):
+    """Developer-granted per-user exception to their role's permissions --
+    either an explicit ALLOW (grants something their role doesn't) or an
+    explicit DENY (takes away something their role would otherwise grant).
+    See app/permissions.py for the precedence order this participates in."""
+
+    __tablename__ = "user_permission_overrides"
+    __table_args__ = (
+        UniqueConstraint("admin_user_id", "module", "action", name="uq_override_user_module_action"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    admin_user_id = Column(Integer, ForeignKey("admin_users.id"), nullable=False, index=True)
+    module = Column(String(40), nullable=False)
+    action = Column(String(20), nullable=False)
+    effect = Column(String(10), nullable=False)  # "ALLOW" | "DENY"
+    granted_by = Column(String(80), nullable=False)
+    reason = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=True)
+
+
+class AdminSession(Base):
+    """A server-side record of one logged-in admin browser session, so the
+    Developer Dashboard can list/revoke sessions -- something the previous
+    pure-signed-cookie session (no DB record at all) could never support.
+    `session_token` is the value stored inside the existing Starlette
+    session cookie; revoking sets `revoked_at` so the next request bearing
+    that cookie is rejected in app/deps.py:get_current_admin."""
+
+    __tablename__ = "admin_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_token = Column(String(64), unique=True, nullable=False, index=True)
+    admin_user_id = Column(Integer, ForeignKey("admin_users.id"), nullable=False, index=True)
+    username = Column(String(80), nullable=False)
+    ip_address = Column(String(64), default="")
+    user_agent = Column(String(300), default="")
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    last_seen_at = Column(DateTime, default=datetime.utcnow, index=True)
+    revoked_at = Column(DateTime, nullable=True)
+    revoked_by = Column(String(80), nullable=True)
+    revoke_reason = Column(String(200), nullable=True)
+
+
+class LoginAttempt(Base):
+    """Every admin login attempt (success or failure), used for the
+    Developer Dashboard's login-attempt view and for lockout after repeated
+    failures. Customer login attempts are also recorded here (harmless,
+    same shape) but are not currently subject to lockout."""
+
+    __tablename__ = "login_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    identifier = Column(String(180), nullable=False, index=True)
+    ip_address = Column(String(64), default="")
+    user_agent = Column(String(300), default="")
+    success = Column(Boolean, nullable=False)
+    reason = Column(String(80), default="")  # bad_password / unknown_user / locked / inactive
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
 
 class CustomerActivityLog(Base):

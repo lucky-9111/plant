@@ -10,13 +10,16 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.accounting.sync import sync_order_to_accounting
 from app.analytics_utils import INACTIVE_DAYS
-from app.auth import hash_password, verify_password
+from app.audit import SUPER_ACCESS_GRANTED, SUPER_ACCESS_REVOKED, record_admin_audit
+from app.auth import hash_password
 from app.database import BASE_DIR, get_db
 from app.deps import get_current_admin, get_current_developer
+from app.permissions import require_permission
 from app.models import (
     CANCELLABLE_STATUSES,
     FAQ,
     AdminActivityLog,
+    AdminSession,
     AdminUser,
     BlogPost,
     Category,
@@ -34,6 +37,7 @@ from app.models import (
     PricingPlan,
     Purchase,
     PurchaseItem,
+    Role,
     Service,
     SiteSetting,
     Testimonial,
@@ -58,7 +62,6 @@ from app.schemas import (
     GalleryImageOut,
     InquiryOut,
     InquiryStatusIn,
-    LoginIn,
     OrderAdminUpdateIn,
     OrderCancelIn,
     OrderOut,
@@ -127,16 +130,11 @@ def _validate_variants(variants: list[PlantVariantIn], price: float) -> None:
 
 
 # ---------- Auth ----------
-
-@router.post("/login")
-def login(payload: LoginIn, request: Request, db: Session = Depends(get_db)):
-    user = db.query(AdminUser).filter(AdminUser.username == payload.username.strip()).first()
-    if not user or not verify_password(payload.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Invalid username or password")
-    request.session.pop("customer_id", None)
-    request.session["admin_username"] = user.username
-    log_activity(db, user.username, "login")
-    return {"username": user.username, "role": user.role}
+# Note: the real, live login path is POST /auth/login in app/api_public.py
+# (unified_login) -- that's the only one frontend/src ever calls. The
+# `/login` route that used to live here was dead code (unreferenced from
+# any frontend page) and has been removed rather than kept as a second,
+# unhardened path once /auth/login gains lockout/session/audit logic.
 
 
 @router.post("/logout")
@@ -158,6 +156,17 @@ def list_admins(admin: str = Depends(get_current_admin), db: Session = Depends(g
     return db.query(AdminUser).order_by(AdminUser.id).all()
 
 
+ADMIN_ROLES = ("admin", "developer", "super_access", "custom")
+
+
+def _validate_role_payload(db: Session, role: str, custom_role_id: Optional[int]) -> None:
+    if role not in ADMIN_ROLES:
+        raise HTTPException(status_code=400, detail=f"Role must be one of {ADMIN_ROLES}")
+    if role == "custom":
+        if not custom_role_id or not db.query(Role).filter(Role.id == custom_role_id, Role.is_system.is_(False)).first():
+            raise HTTPException(status_code=400, detail="custom_role_id must reference an existing custom role")
+
+
 @router.post("/admins", response_model=AdminUserOut, status_code=201)
 def create_admin(
     payload: AdminUserCreateIn,
@@ -167,15 +176,21 @@ def create_admin(
     username = payload.username.strip()
     if not username or not payload.password:
         raise HTTPException(status_code=400, detail="Username and password are required")
-    if payload.role not in ("admin", "developer"):
-        raise HTTPException(status_code=400, detail="Role must be 'admin' or 'developer'")
+    _validate_role_payload(db, payload.role, payload.custom_role_id)
     if db.query(AdminUser).filter(AdminUser.username == username).first():
         raise HTTPException(status_code=400, detail="Username already exists")
-    item = AdminUser(username=username, hashed_password=hash_password(payload.password), role=payload.role)
+    item = AdminUser(
+        username=username,
+        hashed_password=hash_password(payload.password),
+        role=payload.role,
+        custom_role_id=payload.custom_role_id if payload.role == "custom" else None,
+    )
     db.add(item)
     db.commit()
     db.refresh(item)
     log_activity(db, admin, "admin_created", username)
+    if payload.role == "super_access":
+        record_admin_audit(admin, SUPER_ACCESS_GRANTED, {"username": username})
     return item
 
 
@@ -190,6 +205,19 @@ def reset_admin_password(
     if not payload.password:
         raise HTTPException(status_code=400, detail="Password is required")
     item.hashed_password = hash_password(payload.password)
+    # A password reset should invalidate every existing browser session for
+    # this account -- otherwise a session opened with the OLD password stays
+    # logged in indefinitely after the reset.
+    now = datetime.utcnow()
+    revoked = (
+        db.query(AdminSession)
+        .filter(AdminSession.admin_user_id == item.id, AdminSession.revoked_at.is_(None))
+        .all()
+    )
+    for sess in revoked:
+        sess.revoked_at = now
+        sess.revoked_by = admin
+        sess.revoke_reason = "password_reset"
     db.commit()
     log_activity(db, admin, "password_reset", item.username)
     return item
@@ -203,15 +231,21 @@ def change_admin_role(
     db: Session = Depends(get_db),
 ):
     item = get_or_404(db, AdminUser, item_id)
-    if payload.role not in ("admin", "developer"):
-        raise HTTPException(status_code=400, detail="Role must be 'admin' or 'developer'")
+    _validate_role_payload(db, payload.role, payload.custom_role_id)
     if item.role == "developer" and payload.role != "developer":
         remaining = db.query(AdminUser).filter(AdminUser.role == "developer", AdminUser.id != item_id).count()
         if remaining == 0:
             raise HTTPException(status_code=400, detail="Cannot demote the last remaining developer")
+
+    was_super_access = item.role == "super_access"
     item.role = payload.role
+    item.custom_role_id = payload.custom_role_id if payload.role == "custom" else None
     db.commit()
     log_activity(db, admin, "role_changed", f"{item.username} -> {payload.role}")
+    if payload.role == "super_access" and not was_super_access:
+        record_admin_audit(admin, SUPER_ACCESS_GRANTED, {"username": item.username})
+    elif was_super_access and payload.role != "super_access":
+        record_admin_audit(admin, SUPER_ACCESS_REVOKED, {"username": item.username})
     return item
 
 
@@ -287,7 +321,7 @@ def dashboard(admin: str = Depends(get_current_admin), db: Session = Depends(get
     }
 
 
-@router.get("/customer-logs")
+@router.get("/customer-logs", dependencies=[Depends(require_permission("customers", "VIEW"))])
 def list_customer_logs(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
     purchased_ids = {row[0] for row in db.query(Order.customer_id).distinct().all()}
     logs = (
@@ -313,12 +347,12 @@ def list_customer_logs(admin: str = Depends(get_current_admin), db: Session = De
 
 # ---------- Categories ----------
 
-@router.get("/categories", response_model=list[CategoryOut])
+@router.get("/categories", dependencies=[Depends(require_permission("products", "VIEW"))], response_model=list[CategoryOut])
 def list_categories(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
     return db.query(Category).order_by(Category.display_order).all()
 
 
-@router.post("/categories", response_model=CategoryOut, status_code=201)
+@router.post("/categories", dependencies=[Depends(require_permission("products", "CREATE"))], response_model=CategoryOut, status_code=201)
 def create_category(
     payload: CategoryIn, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
 ):
@@ -335,7 +369,7 @@ def create_category(
     return item
 
 
-@router.put("/categories/{item_id}", response_model=CategoryOut)
+@router.put("/categories/{item_id}", dependencies=[Depends(require_permission("products", "EDIT"))], response_model=CategoryOut)
 def update_category(
     item_id: int,
     payload: CategoryIn,
@@ -354,7 +388,7 @@ def update_category(
     return item
 
 
-@router.delete("/categories/{item_id}", status_code=204)
+@router.delete("/categories/{item_id}", dependencies=[Depends(require_permission("products", "DELETE"))], status_code=204)
 def delete_category(
     item_id: int, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
 ):
@@ -365,7 +399,7 @@ def delete_category(
 
 # ---------- Plants ----------
 
-@router.get("/plants", response_model=list[PlantOut])
+@router.get("/plants", dependencies=[Depends(require_permission("products", "VIEW"))], response_model=list[PlantOut])
 def list_plants(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
     return (
         db.query(Plant)
@@ -375,7 +409,7 @@ def list_plants(admin: str = Depends(get_current_admin), db: Session = Depends(g
     )
 
 
-@router.post("/plants", response_model=PlantOut, status_code=201)
+@router.post("/plants", dependencies=[Depends(require_permission("products", "CREATE"))], response_model=PlantOut, status_code=201)
 def create_plant(
     payload: PlantIn, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
 ):
@@ -408,7 +442,7 @@ def create_plant(
     return item
 
 
-@router.put("/plants/{item_id}", response_model=PlantOut)
+@router.put("/plants/{item_id}", dependencies=[Depends(require_permission("products", "EDIT"))], response_model=PlantOut)
 def update_plant(
     item_id: int,
     payload: PlantIn,
@@ -444,7 +478,7 @@ def update_plant(
     return item
 
 
-@router.delete("/plants/{item_id}", status_code=204)
+@router.delete("/plants/{item_id}", dependencies=[Depends(require_permission("products", "DELETE"))], status_code=204)
 def delete_plant(
     item_id: int, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
 ):
@@ -455,7 +489,7 @@ def delete_plant(
 
 # ---------- Purchases (procurement) ----------
 
-@router.get("/purchases", response_model=list[PurchaseOut])
+@router.get("/purchases", dependencies=[Depends(require_permission("products", "VIEW"))], response_model=list[PurchaseOut])
 def list_purchases(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
     return (
         db.query(Purchase)
@@ -465,7 +499,7 @@ def list_purchases(admin: str = Depends(get_current_admin), db: Session = Depend
     )
 
 
-@router.post("/purchases", response_model=PurchaseOut, status_code=201)
+@router.post("/purchases", dependencies=[Depends(require_permission("products", "CREATE"))], response_model=PurchaseOut, status_code=201)
 def create_purchase(
     payload: PurchaseIn, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
 ):
@@ -517,7 +551,7 @@ def create_purchase(
     return purchase
 
 
-@router.delete("/purchases/{item_id}", status_code=204)
+@router.delete("/purchases/{item_id}", dependencies=[Depends(require_permission("products", "DELETE"))], status_code=204)
 def delete_purchase(
     item_id: int, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
 ):
@@ -531,12 +565,12 @@ def delete_purchase(
 
 # ---------- Services ----------
 
-@router.get("/services", response_model=list[ServiceOut])
+@router.get("/services", dependencies=[Depends(require_permission("website", "VIEW"))], response_model=list[ServiceOut])
 def list_services(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
     return db.query(Service).order_by(Service.display_order).all()
 
 
-@router.post("/services", response_model=ServiceOut, status_code=201)
+@router.post("/services", dependencies=[Depends(require_permission("website", "CREATE"))], response_model=ServiceOut, status_code=201)
 def create_service(
     payload: ServiceIn, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
 ):
@@ -557,7 +591,7 @@ def create_service(
     return item
 
 
-@router.put("/services/{item_id}", response_model=ServiceOut)
+@router.put("/services/{item_id}", dependencies=[Depends(require_permission("website", "EDIT"))], response_model=ServiceOut)
 def update_service(
     item_id: int,
     payload: ServiceIn,
@@ -580,7 +614,7 @@ def update_service(
     return item
 
 
-@router.delete("/services/{item_id}", status_code=204)
+@router.delete("/services/{item_id}", dependencies=[Depends(require_permission("website", "DELETE"))], status_code=204)
 def delete_service(
     item_id: int, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
 ):
@@ -591,12 +625,12 @@ def delete_service(
 
 # ---------- Pricing Plans ----------
 
-@router.get("/pricing-plans", response_model=list[PricingPlanOut])
+@router.get("/pricing-plans", dependencies=[Depends(require_permission("website", "VIEW"))], response_model=list[PricingPlanOut])
 def list_pricing_plans(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
     return db.query(PricingPlan).order_by(PricingPlan.display_order).all()
 
 
-@router.post("/pricing-plans", response_model=PricingPlanOut, status_code=201)
+@router.post("/pricing-plans", dependencies=[Depends(require_permission("website", "CREATE"))], response_model=PricingPlanOut, status_code=201)
 def create_pricing_plan(
     payload: PricingPlanIn, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
 ):
@@ -614,7 +648,7 @@ def create_pricing_plan(
     return item
 
 
-@router.put("/pricing-plans/{item_id}", response_model=PricingPlanOut)
+@router.put("/pricing-plans/{item_id}", dependencies=[Depends(require_permission("website", "EDIT"))], response_model=PricingPlanOut)
 def update_pricing_plan(
     item_id: int,
     payload: PricingPlanIn,
@@ -633,7 +667,7 @@ def update_pricing_plan(
     return item
 
 
-@router.delete("/pricing-plans/{item_id}", status_code=204)
+@router.delete("/pricing-plans/{item_id}", dependencies=[Depends(require_permission("website", "DELETE"))], status_code=204)
 def delete_pricing_plan(
     item_id: int, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
 ):
@@ -644,12 +678,12 @@ def delete_pricing_plan(
 
 # ---------- FAQs ----------
 
-@router.get("/faqs", response_model=list[FAQOut])
+@router.get("/faqs", dependencies=[Depends(require_permission("website", "VIEW"))], response_model=list[FAQOut])
 def list_faqs(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
     return db.query(FAQ).order_by(FAQ.display_order).all()
 
 
-@router.post("/faqs", response_model=FAQOut, status_code=201)
+@router.post("/faqs", dependencies=[Depends(require_permission("website", "CREATE"))], response_model=FAQOut, status_code=201)
 def create_faq(
     payload: FAQIn, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
 ):
@@ -665,7 +699,7 @@ def create_faq(
     return item
 
 
-@router.put("/faqs/{item_id}", response_model=FAQOut)
+@router.put("/faqs/{item_id}", dependencies=[Depends(require_permission("website", "EDIT"))], response_model=FAQOut)
 def update_faq(
     item_id: int,
     payload: FAQIn,
@@ -682,7 +716,7 @@ def update_faq(
     return item
 
 
-@router.delete("/faqs/{item_id}", status_code=204)
+@router.delete("/faqs/{item_id}", dependencies=[Depends(require_permission("website", "DELETE"))], status_code=204)
 def delete_faq(item_id: int, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
     item = get_or_404(db, FAQ, item_id)
     db.delete(item)
@@ -691,12 +725,12 @@ def delete_faq(item_id: int, admin: str = Depends(get_current_admin), db: Sessio
 
 # ---------- Testimonials ----------
 
-@router.get("/testimonials", response_model=list[TestimonialOut])
+@router.get("/testimonials", dependencies=[Depends(require_permission("website", "VIEW"))], response_model=list[TestimonialOut])
 def list_testimonials(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
     return db.query(Testimonial).order_by(Testimonial.created_at.desc()).all()
 
 
-@router.post("/testimonials", response_model=TestimonialOut, status_code=201)
+@router.post("/testimonials", dependencies=[Depends(require_permission("website", "CREATE"))], response_model=TestimonialOut, status_code=201)
 def create_testimonial(
     payload: TestimonialIn, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
 ):
@@ -713,7 +747,7 @@ def create_testimonial(
     return item
 
 
-@router.put("/testimonials/{item_id}", response_model=TestimonialOut)
+@router.put("/testimonials/{item_id}", dependencies=[Depends(require_permission("website", "EDIT"))], response_model=TestimonialOut)
 def update_testimonial(
     item_id: int,
     payload: TestimonialIn,
@@ -731,7 +765,7 @@ def update_testimonial(
     return item
 
 
-@router.delete("/testimonials/{item_id}", status_code=204)
+@router.delete("/testimonials/{item_id}", dependencies=[Depends(require_permission("website", "DELETE"))], status_code=204)
 def delete_testimonial(
     item_id: int, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
 ):
@@ -742,12 +776,12 @@ def delete_testimonial(
 
 # ---------- Gallery ----------
 
-@router.get("/gallery", response_model=list[GalleryImageOut])
+@router.get("/gallery", dependencies=[Depends(require_permission("website", "VIEW"))], response_model=list[GalleryImageOut])
 def list_gallery(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
     return db.query(GalleryImage).order_by(GalleryImage.display_order).all()
 
 
-@router.post("/gallery", response_model=GalleryImageOut, status_code=201)
+@router.post("/gallery", dependencies=[Depends(require_permission("website", "CREATE"))], response_model=GalleryImageOut, status_code=201)
 def create_gallery_image(
     payload: GalleryImageIn, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
 ):
@@ -763,7 +797,7 @@ def create_gallery_image(
     return item
 
 
-@router.put("/gallery/{item_id}", response_model=GalleryImageOut)
+@router.put("/gallery/{item_id}", dependencies=[Depends(require_permission("website", "EDIT"))], response_model=GalleryImageOut)
 def update_gallery_image(
     item_id: int,
     payload: GalleryImageIn,
@@ -780,7 +814,7 @@ def update_gallery_image(
     return item
 
 
-@router.delete("/gallery/{item_id}", status_code=204)
+@router.delete("/gallery/{item_id}", dependencies=[Depends(require_permission("website", "DELETE"))], status_code=204)
 def delete_gallery_image(
     item_id: int, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
 ):
@@ -791,12 +825,12 @@ def delete_gallery_image(
 
 # ---------- Blog ----------
 
-@router.get("/blog", response_model=list[BlogPostOut])
+@router.get("/blog", dependencies=[Depends(require_permission("website", "VIEW"))], response_model=list[BlogPostOut])
 def list_blog_posts(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
     return db.query(BlogPost).order_by(BlogPost.published_at.desc()).all()
 
 
-@router.post("/blog", response_model=BlogPostOut, status_code=201)
+@router.post("/blog", dependencies=[Depends(require_permission("website", "CREATE"))], response_model=BlogPostOut, status_code=201)
 def create_blog_post(
     payload: BlogPostIn, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
 ):
@@ -814,7 +848,7 @@ def create_blog_post(
     return item
 
 
-@router.put("/blog/{item_id}", response_model=BlogPostOut)
+@router.put("/blog/{item_id}", dependencies=[Depends(require_permission("website", "EDIT"))], response_model=BlogPostOut)
 def update_blog_post(
     item_id: int,
     payload: BlogPostIn,
@@ -834,7 +868,7 @@ def update_blog_post(
     return item
 
 
-@router.delete("/blog/{item_id}", status_code=204)
+@router.delete("/blog/{item_id}", dependencies=[Depends(require_permission("website", "DELETE"))], status_code=204)
 def delete_blog_post(
     item_id: int, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
 ):
@@ -845,7 +879,7 @@ def delete_blog_post(
 
 # ---------- Inquiries ----------
 
-@router.get("/inquiries", response_model=list[InquiryOut])
+@router.get("/inquiries", dependencies=[Depends(require_permission("customers", "VIEW"))], response_model=list[InquiryOut])
 def list_inquiries(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
     return (
         db.query(Inquiry)
@@ -855,7 +889,7 @@ def list_inquiries(admin: str = Depends(get_current_admin), db: Session = Depend
     )
 
 
-@router.put("/inquiries/{item_id}/status", response_model=InquiryOut)
+@router.put("/inquiries/{item_id}/status", dependencies=[Depends(require_permission("customers", "EDIT"))], response_model=InquiryOut)
 def update_inquiry_status(
     item_id: int,
     payload: InquiryStatusIn,
@@ -869,7 +903,7 @@ def update_inquiry_status(
     return item
 
 
-@router.delete("/inquiries/{item_id}", status_code=204)
+@router.delete("/inquiries/{item_id}", dependencies=[Depends(require_permission("customers", "DELETE"))], status_code=204)
 def delete_inquiry(
     item_id: int, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
 ):
@@ -912,7 +946,7 @@ def _validate_status_transition(current: str, new: str) -> None:
         )
 
 
-@router.get("/orders", response_model=list[OrderSummaryOut])
+@router.get("/orders", dependencies=[Depends(require_permission("orders", "VIEW"))], response_model=list[OrderSummaryOut])
 def list_orders(
     response: Response,
     search: Optional[str] = None,
@@ -968,12 +1002,12 @@ def list_orders(
     return items
 
 
-@router.get("/orders/{order_id}", response_model=OrderOut)
+@router.get("/orders/{order_id}", dependencies=[Depends(require_permission("orders", "VIEW"))], response_model=OrderOut)
 def get_order(order_id: int, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
     return _get_order_or_404(db, order_id)
 
 
-@router.put("/orders/{order_id}/status", response_model=OrderOut)
+@router.put("/orders/{order_id}/status", dependencies=[Depends(require_permission("orders", "EDIT"))], response_model=OrderOut)
 def update_order_status(
     order_id: int,
     payload: OrderAdminUpdateIn,
@@ -1024,7 +1058,7 @@ def update_order_status(
     return order
 
 
-@router.post("/orders/{order_id}/cancel", response_model=OrderOut)
+@router.post("/orders/{order_id}/cancel", dependencies=[Depends(require_permission("orders", "CANCEL"))], response_model=OrderOut)
 def admin_cancel_order(
     order_id: int,
     payload: OrderCancelIn,
@@ -1069,7 +1103,7 @@ def admin_cancel_order(
 
 # ---------- Customers ----------
 
-@router.get("/customers", response_model=list[CustomerAdminOut])
+@router.get("/customers", dependencies=[Depends(require_permission("customers", "VIEW"))], response_model=list[CustomerAdminOut])
 def list_customers(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
     order_counts = dict(
         db.query(Order.customer_id, func.count(Order.id)).group_by(Order.customer_id).all()
@@ -1095,7 +1129,7 @@ def list_customers(admin: str = Depends(get_current_admin), db: Session = Depend
     ]
 
 
-@router.get("/customers/{item_id}", response_model=CustomerAdminDetailOut)
+@router.get("/customers/{item_id}", dependencies=[Depends(require_permission("customers", "VIEW"))], response_model=CustomerAdminDetailOut)
 def get_customer(
     item_id: int, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
 ):
@@ -1131,12 +1165,12 @@ def get_customer(
 
 # ---------- Settings ----------
 
-@router.get("/settings")
+@router.get("/settings", dependencies=[Depends(require_permission("website", "VIEW"))])
 def read_settings(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
     return get_settings(db)
 
 
-@router.put("/settings")
+@router.put("/settings", dependencies=[Depends(require_permission("website", "EDIT"))])
 def update_settings(
     payload: SettingsIn, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
 ):

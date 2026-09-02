@@ -31,12 +31,22 @@ export function AuthProvider({ children }) {
     setSession(null);
   }
 
-  const isAdminType = Boolean(session) && (session.type === "admin" || session.type === "developer");
+  const ADMIN_TYPES = new Set(["admin", "developer", "super_access", "custom"]);
+  const isAdminType = Boolean(session) && ADMIN_TYPES.has(session.type);
   const username = session === undefined ? undefined : isAdminType ? session.username : null;
   const role = isAdminType ? session.type : null;
+  // { [module]: { VIEW: bool, CREATE: bool, ... } } from /auth/me and /auth/login,
+  // computed server-side by app/permissions.py -- the frontend never decides
+  // access on its own, only reflects what the backend already enforces.
+  const permissions = isAdminType ? session.permissions || {} : {};
+
+  function hasPermission(module, action = "VIEW") {
+    if (role === "developer") return true; // Developer's own tools are never matrix-governed
+    return Boolean(permissions[module]?.[action]);
+  }
 
   return (
-    <AuthContext.Provider value={{ session, username, role, login, register, logout }}>
+    <AuthContext.Provider value={{ session, username, role, permissions, hasPermission, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );
