@@ -22,6 +22,9 @@ from app.accounting.router import router as accounting_router
 from app.delivery.router import router as delivery_router
 from app.labour.router import router as labour_router
 from app.database import Base, SessionLocal, engine
+from app.live_logs.handler import LiveLogHandler
+from app.live_logs.hub import hub as live_log_hub
+from app.live_logs.router import router as live_logs_router
 from app.monitoring.module_map import infer_module
 from app.monitoring.recorder import record_error, record_request_outcome
 from app.permissions import require_permission
@@ -186,7 +189,19 @@ seed_rbac_defaults(SessionLocal)
 
 app = FastAPI(title="Aaiji Nursery")
 
+# Live Logs (Developer Dashboard): attach the bridge handler to the ROOT
+# logger so any existing `logger.info/.warning/.error(...)` call anywhere
+# in the app -- not just new ones -- becomes visible in the live terminal.
+# This does NOT change root's level (so third-party libraries stay exactly
+# as quiet as before); it only adds a destination for whatever already
+# passes each individual logger's own effective level.
+logging.getLogger().addHandler(LiveLogHandler())
 
+
+@app.on_event("startup")
+async def _bind_live_log_hub():
+    import asyncio
+    live_log_hub.bind_loop(asyncio.get_running_loop())
 
 
 @app.get("/")
@@ -217,6 +232,12 @@ app.add_middleware(
 )
 
 request_logger = logging.getLogger("app.requests")
+# Live Logs (Developer Dashboard): this is the single most reliable source
+# of "watch the real backend terminal live" content in an app with no
+# background-job system -- every real API request, as it really happens.
+# Scoped to this one logger's level only (root's level is untouched) so no
+# third-party library becomes noisier as a side effect.
+request_logger.setLevel(logging.INFO)
 
 
 @app.middleware("http")
@@ -259,10 +280,18 @@ async def request_context_middleware(request: Request, call_next):
     module, sub_module, func_name, endpoint = infer_module(request)
     record_request_outcome(module, sub_module, func_name, endpoint, request.method, response.status_code, request_id, elapsed_ms)
     response.headers["X-Request-ID"] = request_id
+
+    if request.url.path.startswith("/api"):  # skip static asset/SPA-fallback noise
+        request_logger.info(
+            "%s %s -> %s (%.0fms)",
+            request.method, request.url.path, response.status_code, elapsed_ms,
+            extra={"request_id": request_id, "service": module, "module_name": func_name},
+        )
     return response
 
 
 app.include_router(api_public.router)
+app.include_router(live_logs_router)
 app.include_router(api_admin.router)
 # Coarse module-VIEW enforcement (Developer Dashboard RBAC, Phase 4): every
 # route in these already-standalone routers now additionally requires

@@ -4,7 +4,14 @@ role gate beyond the existing admin-session check.
 
 Every endpoint accepts optional date_from/date_to (plain dates, e.g.
 2026-08-01) to export only a slice of the data instead of everything.
-date_to is treated as inclusive of that whole day."""
+date_to is treated as inclusive of that whole day.
+
+Live Logs (Developer Dashboard): this is a real, already-existing
+multi-step operation (build a workbook row by row), so it's wired to emit
+real progress into the live-log hub with a job_id -- genuine job progress,
+not a simulated demo."""
+import logging
+import uuid
 from datetime import datetime, timedelta
 from io import BytesIO
 from typing import Optional
@@ -13,6 +20,8 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
 from sqlalchemy.orm import Session, joinedload
+
+from app.live_logs.handler import log_success
 
 from app.accounting.models import (
     Contact,
@@ -31,6 +40,10 @@ router = APIRouter(prefix="/export", tags=["accounting-export"])
 
 XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
+export_logger = logging.getLogger("app.accounting.export")
+export_logger.setLevel(logging.INFO)
+BATCH_LOG_SIZE = 200  # log progress every N rows, not every single one
+
 
 def _date_filter(query, column, date_from: Optional[datetime], date_to: Optional[datetime]):
     if date_from:
@@ -41,18 +54,30 @@ def _date_filter(query, column, date_from: Optional[datetime], date_to: Optional
 
 
 def _xlsx_response(filename: str, headers: list[str], rows: list[list]) -> StreamingResponse:
+    job_id = f"JOB-{datetime.utcnow():%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:4]}"
+    extra = {"service": "Accounting", "module_name": "export", "job_id": job_id}
+
+    export_logger.info("Starting export: %s", filename, extra=extra)
+    export_logger.info("Rows to write: %s", len(rows), extra=extra)
+
     wb = Workbook()
     ws = wb.active
     ws.append(headers)
-    for row in rows:
+    for i, row in enumerate(rows, start=1):
         ws.append(row)
+        if i % BATCH_LOG_SIZE == 0:
+            export_logger.info("Processed %s / %s rows...", i, len(rows), extra=extra)
+
+    export_logger.info("Writing workbook to disk...", extra=extra)
     buf = BytesIO()
     wb.save(buf)
     buf.seek(0)
+    log_success(export_logger, "Export completed: %s (%s rows)", filename, len(rows), extra=extra)
+
     return StreamingResponse(
         buf,
         media_type=XLSX_MEDIA_TYPE,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"', "X-Job-Id": job_id},
     )
 
 

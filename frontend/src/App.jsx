@@ -55,6 +55,7 @@ import SystemHealthActiveErrors from "./admin/pages/system-health/ActiveErrors";
 import SystemHealthErrorHistory from "./admin/pages/system-health/ErrorHistory";
 import SystemHealthFunctionMonitoring from "./admin/pages/system-health/FunctionMonitoring";
 import SystemHealthSystemLogs from "./admin/pages/system-health/SystemLogs";
+import LiveLogs from "./admin/pages/developer/LiveLogs";
 import AccountingOverview from "./admin/pages/accounting/Overview";
 import AccountingSalesOrders from "./admin/pages/accounting/SalesOrders";
 import AccountingSalesOrderDetail from "./admin/pages/accounting/SalesOrderDetail";
@@ -169,6 +170,7 @@ export default function App() {
           <Route path="developer/system-health/history" element={<SystemHealthErrorHistory />} />
           <Route path="developer/system-health/functions" element={<SystemHealthFunctionMonitoring />} />
           <Route path="developer/system-health/logs" element={<SystemHealthSystemLogs />} />
+          <Route path="developer/live-logs" element={<LiveLogs />} />
           <Route path="accounting" element={<ErrorBoundary moduleName="Accounting"><AccountingOverview /></ErrorBoundary>} />
           <Route path="accounting/sales-orders" element={<ErrorBoundary moduleName="Accounting"><AccountingSalesOrders /></ErrorBoundary>} />
           <Route path="accounting/sales-orders/:id" element={<ErrorBoundary moduleName="Accounting"><AccountingSalesOrderDetail /></ErrorBoundary>} />
