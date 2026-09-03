@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session, joinedload
 
 from app.accounting.sync import sync_order_to_accounting
+from app.order_alerts.hub import hub as order_alert_hub
 from app.auth import hash_password, verify_password
 from app.database import get_db
 from app.deps import get_current_customer
@@ -23,7 +24,12 @@ from app.models import (
     PlantVariant,
     WishlistItem,
 )
-from app.notifications import notify_order_cancelled, notify_order_status, send_email
+from app.notifications import (
+    notify_order_awaiting_confirmation,
+    notify_order_cancelled,
+    notify_order_status,
+    send_email,
+)
 from app.payments import create_razorpay_order, verify_payment_signature
 from app.schemas import (
     AddressIn,
@@ -573,13 +579,13 @@ def checkout(
         else:
             plant.stock_quantity -= quantity
 
-    if payload.payment_method == "Razorpay":
-        try:
-            razorpay_order = create_razorpay_order(subtotal, receipt=f"order_{order.id}")
-        except HTTPException:
-            db.rollback()
-            raise
-        order.razorpay_order_id = razorpay_order["id"]
+    # Feature 2 (delivery feasibility + team confirmation): the Razorpay
+    # order is deliberately NOT created here anymore, for either payment
+    # method -- no payment gateway is contacted and no payment can be made
+    # until the nursery team has reviewed delivery feasibility/cost and
+    # explicitly confirmed the order (see POST /orders/{id}/create-payment
+    # and the team_confirmation_status guard in verify_payment() below).
+    # team_confirmation_status defaults to "PENDING" on the Order model.
 
     db.add(
         OrderStatusHistory(
@@ -587,7 +593,7 @@ def checkout(
             old_status=None,
             new_status="Pending",
             updated_by="customer",
-            remarks="Order placed",
+            remarks="Order request submitted -- awaiting team delivery confirmation",
         )
     )
     if clear_cart:
@@ -596,10 +602,44 @@ def checkout(
     sync_order_to_accounting(order.id)
 
     order = get_or_404_order(db, order.id, customer_id)
-    if payload.payment_method != "Razorpay":
-        # Razorpay orders are notified once payment is verified, not before.
-        notify_order_status(order, None, "Pending")
+    notify_order_awaiting_confirmation(order)
+    # New Order Alert (real-time admin dashboard): fires exactly once per
+    # genuinely new order -- the idempotency_key short-circuit above
+    # returns early for a retried submit before this line is ever reached.
+    order_alert_hub.emit_new_order(order)
     return order
+
+
+@router.post("/orders/{order_id}/create-payment", response_model=OrderOut)
+def create_payment(
+    order_id: int,
+    customer_id: int = Depends(get_current_customer),
+    db: Session = Depends(get_db),
+):
+    """Feature 2: the Razorpay order is only ever created here, once the
+    team has confirmed the order -- never at checkout time. This is the
+    single place a payment gateway call can happen for a normal order, and
+    it's backend-gated (section 23), not just a hidden/disabled button."""
+    order = get_or_404_order(db, order_id, customer_id)
+
+    if order.payment_method != "Razorpay":
+        raise HTTPException(status_code=400, detail="This order does not use online payment")
+    if order.team_confirmation_status != "CONFIRMED":
+        raise HTTPException(status_code=403, detail="This order is still awaiting team delivery confirmation.")
+    if order.payment_status == "Paid":
+        return order  # already paid; idempotent for double-submits
+    if order.razorpay_order_id:
+        return order  # a Razorpay order already exists for this order -- reuse it
+
+    try:
+        razorpay_order = create_razorpay_order(order.total_amount, receipt=f"order_{order.id}")
+    except HTTPException:
+        db.rollback()
+        raise
+    order.razorpay_order_id = razorpay_order["id"]
+    db.commit()
+
+    return get_or_404_order(db, order_id, customer_id)
 
 
 @router.post("/orders/{order_id}/verify-payment", response_model=OrderOut)
@@ -616,6 +656,12 @@ def verify_payment(
 
     if order.payment_status == "Paid":
         return order  # already verified; idempotent for double-submits
+
+    # Feature 2's critical backend enforcement (section 23): even if a
+    # client bypasses the UI and calls this directly, payment cannot be
+    # verified/accepted for an order the team hasn't confirmed.
+    if order.team_confirmation_status != "CONFIRMED":
+        raise HTTPException(status_code=403, detail="This order is still awaiting team delivery confirmation.")
 
     if not order.razorpay_order_id or order.razorpay_order_id != payload.razorpay_order_id:
         raise HTTPException(status_code=400, detail="Payment does not match this order")

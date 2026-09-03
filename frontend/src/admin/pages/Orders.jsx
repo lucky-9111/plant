@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../../api";
 import { Loading, Empty } from "../../components/Loading";
 import { ALL_ORDER_STATUS_OPTIONS, paymentBadgeClass, statusBadgeClass } from "../../utils/orderStatus";
@@ -8,9 +8,10 @@ const SEARCH_DEBOUNCE_MS = 400;
 const PAGE_SIZE = 20;
 
 export default function AdminOrders() {
+  const [urlParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(urlParams.get("status") || "");
   const [page, setPage] = useState(1);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -112,6 +113,8 @@ export default function AdminOrders() {
                   <th>Total</th>
                   <th>Status</th>
                   <th>Payment</th>
+                  <th>Call</th>
+                  <th>Assigned</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -137,9 +140,22 @@ export default function AdminOrders() {
                       </span>
                     </td>
                     <td>
-                      <Link className="btn btn-sm btn-outline dark" to={`/admin/orders/${o.id}`}>
-                        View
-                      </Link>
+                      <span className={`badge ${o.call_status === "CONFIRMED" ? "badge-accent" : o.call_status === "PENDING" ? "badge-gold" : "badge-muted"}`}>
+                        {o.call_status}
+                      </span>
+                    </td>
+                    <td>{o.assigned_to || <span style={{ color: "var(--color-text-muted)" }}>Unassigned</span>}</td>
+                    <td>
+                      <div className="row-actions">
+                        <Link className="btn btn-sm btn-outline dark" to={`/admin/orders/${o.id}`}>
+                          View
+                        </Link>
+                        {o.delivery_mobile && (
+                          <a className="btn btn-sm btn-outline dark" href={`tel:${o.delivery_mobile}`}>
+                            📞 Call
+                          </a>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

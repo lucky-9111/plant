@@ -24,6 +24,18 @@ const columns = [
   },
   { key: "price", label: "Price", render: (item) => `₹${item.price}` },
   { key: "stock_quantity", label: "Stock" },
+  {
+    key: "availability_status",
+    label: "Availability",
+    render: (item) => {
+      const map = {
+        AVAILABLE: "badge-accent",
+        OUT_OF_STOCK: "badge-muted",
+        ENQUIRY_AVAILABLE: "badge-gold",
+      };
+      return <span className={`badge ${map[item.availability_status] || "badge-muted"}`}>{item.availability_status}</span>;
+    },
+  },
   { key: "is_active", label: "Active", render: (item) => (item.is_active ? "Yes" : "No") },
 ];
 
@@ -65,6 +77,18 @@ export default function Plants() {
     },
     { name: "is_featured", label: "Featured", type: "checkbox", checkboxLabel: "Show on homepage" },
     { name: "is_active", label: "Active", type: "checkbox", checkboxLabel: "Visible on site", default: true },
+    {
+      name: "availability_status",
+      label: "Availability",
+      type: "select",
+      default: "AVAILABLE",
+      help: "ENQUIRY_AVAILABLE shows an \"Enquire Now\" button instead of Add to Cart/Buy Now -- for plants you can prepare on request even though they're currently out of stock.",
+      options: [
+        { value: "AVAILABLE", label: "Available (normal purchase)" },
+        { value: "OUT_OF_STOCK", label: "Out of Stock (no purchase, no enquiry)" },
+        { value: "ENQUIRY_AVAILABLE", label: "Enquiry Available (customer can Enquire Now)" },
+      ],
+    },
     {
       name: "variants",
       label: "Tray Options (optional — for Seedlings & Trays)",

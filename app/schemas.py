@@ -51,6 +51,7 @@ class PlantOut(BaseModel):
     feature_list: List[str]
     is_featured: bool
     is_active: bool
+    availability_status: str = "AVAILABLE"
     category: Optional[CategoryOut] = None
     variants: List[PlantVariantOut] = []
 
@@ -68,6 +69,7 @@ class PlantIn(BaseModel):
     features: str = ""
     is_featured: bool = False
     is_active: bool = True
+    availability_status: str = "AVAILABLE"
     variants: Optional[List[PlantVariantIn]] = None
 
 
@@ -205,6 +207,14 @@ class InquiryOut(BaseModel):
     plant_id: Optional[int] = None
     plant: Optional[InquiryPlantOut] = None
     created_at: datetime
+    # Feature 1 additions -- all optional so this schema still serializes
+    # legacy generic contact-form rows (which never set these) unchanged.
+    customer_id: Optional[int] = None
+    email: str = ""
+    quantity: Optional[int] = None
+    enquiry_number: Optional[str] = None
+    plant_name_snapshot: str = ""
+    updated_at: Optional[datetime] = None
 
 
 class InquiryIn(BaseModel):
@@ -216,6 +226,32 @@ class InquiryIn(BaseModel):
 
 class InquiryStatusIn(BaseModel):
     status: str
+    note: str = ""
+
+
+class InquiryStatusHistoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    old_status: str
+    new_status: str
+    note: str
+    changed_by: str
+    created_at: datetime
+
+
+class EnquiryCreateIn(BaseModel):
+    """The dedicated Feature 1 "Enquire Now" flow -- distinct from the
+    generic InquiryIn used by the site's general contact form, even though
+    both write to the same underlying table. plant_id and quantity are
+    required here since a product enquiry without either doesn't make
+    sense; the generic contact form's plant_id stays optional."""
+
+    plant_id: int
+    quantity: int = Field(gt=0, default=1)
+    name: str
+    mobile: str
+    email: str = ""
+    message: str = ""
 
 
 class UnifiedLoginIn(BaseModel):
@@ -521,6 +557,19 @@ class OrderSummaryOut(BaseModel):
     items: List[OrderItemOut] = []
 
 
+class OrderSummaryAdminOut(OrderSummaryOut):
+    """New Order Alert + Call Management queue view -- admin-only fields
+    layered onto the same list endpoint/shape customers also use."""
+    delivery_name: str = ""
+    delivery_mobile: str = ""
+    delivery_city: str = ""
+    delivery_pincode: str = ""
+    call_status: str = "PENDING"
+    assigned_to: str = ""
+    order_acknowledged: bool = False
+    team_confirmation_status: str = "PENDING"
+
+
 class OrderOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -548,6 +597,38 @@ class OrderOut(BaseModel):
     customer: Optional[CustomerOut] = None
     items: List[OrderItemOut] = []
     history: List[OrderStatusHistoryOut] = []
+    # Feature 2 (delivery feasibility + team confirmation) -- deliberately
+    # excludes delivery_rejection_reason (see OrderAdminOut below): section
+    # 16 says never expose the internal reason to the customer.
+    team_confirmation_status: str = "PENDING"
+    delivery_feasibility: str = "PENDING"
+    delivery_distance_km: Optional[float] = None
+    delivery_cost_calculated: Optional[float] = None
+    delivery_cost_mode: str = "MANUAL"
+    delivery_review_notes: str = ""
+
+
+class OrderAdminOut(OrderOut):
+    """Same as OrderOut, plus fields customers don't need: the internal
+    rejection reason (section 16) and who/when confirmed the order."""
+    delivery_rejection_reason: str = ""
+    team_confirmed_by: str = ""
+    team_confirmed_at: Optional[datetime] = None
+    # New Order Alert + Call Management
+    call_status: str = "PENDING"
+    assigned_to: str = ""
+    order_acknowledged: bool = False
+    acknowledged_by: str = ""
+    acknowledged_at: Optional[datetime] = None
+
+
+class OrderCallStatusIn(BaseModel):
+    call_status: str
+    note: str = ""
+
+
+class OrderAssignIn(BaseModel):
+    assigned_to: Optional[str] = None  # admin username, or None to unassign
 
 
 class OrderCancelIn(BaseModel):
@@ -562,6 +643,27 @@ class RazorpayVerifyIn(BaseModel):
 
 class PaymentFailedIn(BaseModel):
     reason: str = ""
+
+
+class OrderDeliveryReviewIn(BaseModel):
+    """Team's delivery feasibility + cost review (Feature 2, section 10-12).
+    Separate from OrderConfirmIn -- a team can save a review (e.g. mark
+    NEEDS_REVIEW, jot notes) without that being the final confirm/reject
+    decision yet."""
+    delivery_feasibility: str  # PENDING | APPROVED | NOT_AVAILABLE | NEEDS_REVIEW
+    distance_km: Optional[float] = None
+    cost_mode: str = "MANUAL"  # AUTO | MANUAL | FREE
+    final_delivery_cost: Optional[float] = None
+    notes: str = ""
+
+
+class OrderConfirmIn(BaseModel):
+    remarks: str = ""
+
+
+class OrderRejectDeliveryIn(BaseModel):
+    reason: str  # one of DELIVERY_REJECTION_REASONS
+    detail: str = ""  # free text, used when reason == "Other"
 
 
 class CustomerAdminOut(BaseModel):

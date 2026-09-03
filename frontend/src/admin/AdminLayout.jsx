@@ -2,6 +2,8 @@ import { Navigate, NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Loading } from "../components/Loading";
 import ErrorBoundary from "../components/ErrorBoundary";
+import { OrderAlertProvider } from "./OrderAlertContext";
+import OrderAlertBell from "./OrderAlertBell";
 import logoImg from "../assets/logo.png";
 
 // `module: null` means always visible to any logged-in admin (e.g. the
@@ -100,6 +102,7 @@ export default function AdminLayout() {
   if (username === null) return <Navigate to="/login" replace />;
 
   return (
+    <OrderAlertProvider>
     <div className="admin-shell">
       <aside className="admin-sidebar">
         <div className="brand">
@@ -139,9 +142,12 @@ export default function AdminLayout() {
       <div className="admin-main">
         <div className="admin-topbar">
           <strong>Admin Dashboard</strong>
-          <span style={{ color: "var(--color-text-muted)", fontSize: "0.88rem" }}>
-            Signed in as {username}
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <OrderAlertBell />
+            <span style={{ color: "var(--color-text-muted)", fontSize: "0.88rem" }}>
+              Signed in as {username}
+            </span>
+          </div>
         </div>
         <div className="admin-content">
           <ErrorBoundary moduleName="Admin">
@@ -150,5 +156,6 @@ export default function AdminLayout() {
         </div>
       </div>
     </div>
+    </OrderAlertProvider>
   );
 }

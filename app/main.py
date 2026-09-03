@@ -25,6 +25,8 @@ from app.database import Base, SessionLocal, engine
 from app.live_logs.handler import LiveLogHandler
 from app.live_logs.hub import hub as live_log_hub
 from app.live_logs.router import router as live_logs_router
+from app.order_alerts.hub import hub as order_alert_hub
+from app.order_alerts.router import router as order_alerts_router
 from app.monitoring.module_map import infer_module
 from app.monitoring.recorder import record_error, record_request_outcome
 from app.permissions import require_permission
@@ -45,6 +47,34 @@ with engine.connect() as conn:
     existing_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(inquiries)"))}
     if "plant_id" not in existing_columns:
         conn.execute(text("ALTER TABLE inquiries ADD COLUMN plant_id INTEGER"))
+        conn.commit()
+
+    # Feature 1 (out-of-stock product enquiry): additive columns on the
+    # existing Inquiry table, all nullable/defaulted so old generic
+    # contact-form rows are completely unaffected.
+    if "customer_id" not in existing_columns:
+        conn.execute(text("ALTER TABLE inquiries ADD COLUMN customer_id INTEGER"))
+        conn.commit()
+    if "email" not in existing_columns:
+        conn.execute(text("ALTER TABLE inquiries ADD COLUMN email VARCHAR(180) DEFAULT ''"))
+        conn.commit()
+    if "quantity" not in existing_columns:
+        conn.execute(text("ALTER TABLE inquiries ADD COLUMN quantity INTEGER"))
+        conn.commit()
+    if "enquiry_number" not in existing_columns:
+        conn.execute(text("ALTER TABLE inquiries ADD COLUMN enquiry_number VARCHAR(30)"))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_inquiries_enquiry_number ON inquiries(enquiry_number)"))
+        conn.commit()
+    if "plant_name_snapshot" not in existing_columns:
+        conn.execute(text("ALTER TABLE inquiries ADD COLUMN plant_name_snapshot VARCHAR(150) DEFAULT ''"))
+        conn.commit()
+    if "updated_at" not in existing_columns:
+        conn.execute(text("ALTER TABLE inquiries ADD COLUMN updated_at DATETIME"))
+        conn.commit()
+
+    plant_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(plants)"))}
+    if "availability_status" not in plant_columns:
+        conn.execute(text("ALTER TABLE plants ADD COLUMN availability_status VARCHAR(20) NOT NULL DEFAULT 'AVAILABLE'"))
         conn.commit()
 
     admin_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(admin_users)"))}
@@ -106,6 +136,68 @@ with engine.connect() as conn:
         # after the client never saw the first response) and return the
         # already-created order instead of placing a duplicate one.
         conn.execute(text("ALTER TABLE orders ADD COLUMN idempotency_key VARCHAR(64)"))
+        conn.commit()
+
+    # Feature 2 (delivery feasibility + team confirmation): additive Order
+    # columns, all nullable/defaulted -- existing orders backfill to
+    # team_confirmation_status='PENDING', which the confirm/reject and
+    # verify-payment guards below all treat identically to a brand-new
+    # order, so nothing about an already-placed order's real-world status
+    # changes just because this migration ran.
+    if "team_confirmation_status" not in order_columns:
+        conn.execute(text("ALTER TABLE orders ADD COLUMN team_confirmation_status VARCHAR(30) NOT NULL DEFAULT 'PENDING'"))
+        # One-time cutover: every order that already exists was placed
+        # under the old instant-checkout flow, where team confirmation was
+        # never part of the deal -- backfill them all to CONFIRMED so this
+        # migration can't retroactively block a real historical order (even
+        # one still sitting at status='Pending') from being progressed.
+        # Only orders placed AFTER this migration runs start at PENDING.
+        conn.execute(text("UPDATE orders SET team_confirmation_status = 'CONFIRMED'"))
+        conn.commit()
+    if "delivery_feasibility" not in order_columns:
+        conn.execute(text("ALTER TABLE orders ADD COLUMN delivery_feasibility VARCHAR(30) NOT NULL DEFAULT 'PENDING'"))
+        conn.commit()
+    if "delivery_distance_km" not in order_columns:
+        conn.execute(text("ALTER TABLE orders ADD COLUMN delivery_distance_km FLOAT"))
+        conn.commit()
+    if "delivery_cost_calculated" not in order_columns:
+        conn.execute(text("ALTER TABLE orders ADD COLUMN delivery_cost_calculated FLOAT"))
+        conn.commit()
+    if "delivery_cost_mode" not in order_columns:
+        conn.execute(text("ALTER TABLE orders ADD COLUMN delivery_cost_mode VARCHAR(20) NOT NULL DEFAULT 'MANUAL'"))
+        conn.commit()
+    if "delivery_review_notes" not in order_columns:
+        conn.execute(text("ALTER TABLE orders ADD COLUMN delivery_review_notes TEXT DEFAULT ''"))
+        conn.commit()
+    if "delivery_rejection_reason" not in order_columns:
+        conn.execute(text("ALTER TABLE orders ADD COLUMN delivery_rejection_reason VARCHAR(200) DEFAULT ''"))
+        conn.commit()
+    if "team_confirmed_by" not in order_columns:
+        conn.execute(text("ALTER TABLE orders ADD COLUMN team_confirmed_by VARCHAR(80) DEFAULT ''"))
+        conn.commit()
+    if "team_confirmed_at" not in order_columns:
+        conn.execute(text("ALTER TABLE orders ADD COLUMN team_confirmed_at DATETIME"))
+        conn.commit()
+
+    # New Order Alert + Call Management: additive columns, all
+    # nullable/defaulted. Existing orders backfill order_acknowledged=True
+    # so historical orders don't retroactively show up in the "new orders"
+    # alert queue the moment this migration runs.
+    if "call_status" not in order_columns:
+        conn.execute(text("ALTER TABLE orders ADD COLUMN call_status VARCHAR(20) NOT NULL DEFAULT 'PENDING'"))
+        conn.commit()
+    if "assigned_to" not in order_columns:
+        conn.execute(text("ALTER TABLE orders ADD COLUMN assigned_to VARCHAR(80) DEFAULT ''"))
+        conn.commit()
+    if "order_acknowledged" not in order_columns:
+        conn.execute(text("ALTER TABLE orders ADD COLUMN order_acknowledged BOOLEAN NOT NULL DEFAULT 0"))
+        conn.execute(text("UPDATE orders SET order_acknowledged = 1"))
+        conn.commit()
+    if "acknowledged_by" not in order_columns:
+        conn.execute(text("ALTER TABLE orders ADD COLUMN acknowledged_by VARCHAR(80) DEFAULT ''"))
+        conn.commit()
+    if "acknowledged_at" not in order_columns:
+        conn.execute(text("ALTER TABLE orders ADD COLUMN acknowledged_at DATETIME"))
         conn.commit()
 
     # Seedlings & Trays: cart_items needs a nullable variant_id, and its unique
@@ -202,6 +294,7 @@ logging.getLogger().addHandler(LiveLogHandler())
 async def _bind_live_log_hub():
     import asyncio
     live_log_hub.bind_loop(asyncio.get_running_loop())
+    order_alert_hub.bind_loop(asyncio.get_running_loop())
 
 
 @app.get("/")
@@ -292,6 +385,7 @@ async def request_context_middleware(request: Request, call_next):
 
 app.include_router(api_public.router)
 app.include_router(live_logs_router)
+app.include_router(order_alerts_router)
 app.include_router(api_admin.router)
 # Coarse module-VIEW enforcement (Developer Dashboard RBAC, Phase 4): every
 # route in these already-standalone routers now additionally requires

@@ -43,3 +43,17 @@ export function paymentBadgeClass(status) {
   if (status === "Failed") return "badge-gold";
   return "badge-muted";
 }
+
+// Feature 2 (delivery feasibility + team confirmation) -- an independent
+// axis from `status` above, see app/models.py's Order model comment.
+export const TEAM_CONFIRMATION_LABELS = {
+  PENDING: "Waiting for Team Confirmation",
+  CONFIRMED: "Confirmed",
+  DELIVERY_UNAVAILABLE: "Delivery Unavailable",
+};
+
+export function teamConfirmationBadgeClass(status) {
+  if (status === "CONFIRMED") return "badge-accent";
+  if (status === "DELIVERY_UNAVAILABLE") return "badge-danger";
+  return "badge-gold";
+}

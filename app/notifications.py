@@ -74,6 +74,41 @@ def notify_order_status(order, old_status: str | None, new_status: str) -> None:
     send_whatsapp_admin_alert(f"Order #{order.id}: {old_status or 'New'} -> {new_status}")
 
 
+# Feature 2 (delivery feasibility + team confirmation) -- dedicated
+# messages matching the exact customer-facing copy the business wants at
+# each step, distinct from the generic status-change message above.
+
+def notify_order_awaiting_confirmation(order) -> None:
+    message = (
+        "Your order request has been received.\n\n"
+        "Our team will contact you within 1 hour to confirm delivery "
+        "availability and charges.\n\n"
+        f"Order #{order.id}\nTotal (before delivery charges): Rs.{order.subtotal}"
+    )
+    customer_email = order.customer.email if order.customer else None
+    send_email(customer_email, f"Order #{order.id} Request Received", message)
+    send_whatsapp_admin_alert(f"New order request #{order.id} awaiting delivery confirmation.")
+
+
+def notify_delivery_confirmed(order) -> None:
+    message = (
+        f"Good news! Our team has confirmed we can deliver order #{order.id}.\n\n"
+        f"Products: Rs.{order.subtotal}\nDelivery: Rs.{order.shipping_fee}\nTotal: Rs.{order.total_amount}\n\n"
+        + ("You can now complete your payment." if order.payment_method == "Razorpay" else "Your order will now be processed.")
+    )
+    customer_email = order.customer.email if order.customer else None
+    send_email(customer_email, f"Order #{order.id} Confirmed", message)
+
+
+def notify_delivery_unavailable(order) -> None:
+    message = (
+        f"We're sorry, our team is currently unable to deliver order #{order.id} to this location.\n\n"
+        "Our team will contact you if an alternative arrangement is possible."
+    )
+    customer_email = order.customer.email if order.customer else None
+    send_email(customer_email, f"Order #{order.id} - Delivery Unavailable", message)
+
+
 def _format_order_items(order) -> str:
     lines = [
         f"  - {item.plant_name} x{item.quantity} - Rs.{item.line_total}" for item in order.items

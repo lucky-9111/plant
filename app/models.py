@@ -30,6 +30,22 @@ ALL_ORDER_STATUSES = MAIN_STATUSES + EXTRA_STATUSES
 CANCELLABLE_STATUSES = {"Pending", "Confirmed"}
 PAYMENT_STATUSES = ["Pending", "Paid", "Failed", "Refund Initiated", "Refund Completed"]
 
+# Feature 2 (delivery feasibility + team confirmation) -- see Order model
+# comment for why these live on a separate axis from `status` above.
+TEAM_CONFIRMATION_STATUSES = ["PENDING", "CONFIRMED", "DELIVERY_UNAVAILABLE"]
+DELIVERY_FEASIBILITY_STATUSES = ["PENDING", "APPROVED", "NOT_AVAILABLE", "NEEDS_REVIEW"]
+DELIVERY_COST_MODES = ["AUTO", "MANUAL", "FREE"]
+DELIVERY_REJECTION_REASONS = [
+    "Too far", "No delivery route", "Vehicle unavailable",
+    "Quantity too large", "Temporary restriction", "Other",
+]
+
+# New Order Alert + Call Management -- another independent axis on Order,
+# same pattern as team_confirmation_status above. Deliberately NOT tied to
+# team_confirmation_status: this tracks "did we phone the customer", a
+# separate concern from delivery feasibility/cost, and doesn't gate it.
+CALL_STATUSES = ["PENDING", "CALLED", "NO_ANSWER", "CALL_BACK", "CONFIRMED"]
+
 
 class Category(Base):
     __tablename__ = "categories"
@@ -42,6 +58,16 @@ class Category(Base):
     display_order = Column(Integer, default=0)
 
     plants = relationship("Plant", back_populates="category", cascade="all, delete-orphan")
+
+#  - AVAILABLE: normal purchase flow (Add to Cart / Buy Now), unchanged
+#  - OUT_OF_STOCK: today's plain "can't buy this" state, no Enquire button
+#  - ENQUIRY_AVAILABLE: hides Add to Cart / Buy Now, shows Enquire Now instead
+# "DISABLED" from the product spec maps directly onto the existing
+# `is_active` flag (already hides a plant from the site entirely) --
+# deliberately not duplicated as a 4th value here, to avoid two flags that
+# could disagree with each other.
+PLANT_AVAILABILITY_STATUSES = ["AVAILABLE", "OUT_OF_STOCK", "ENQUIRY_AVAILABLE"]
+
 
 class Plant(Base):
     __tablename__ = "plants"
@@ -60,6 +86,10 @@ class Plant(Base):
     features = Column(Text, default="")  # newline separated bullet features
     is_featured = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True, index=True)
+    # Admin-controlled explicitly -- never auto-derived from stock_quantity,
+    # so an OUT_OF_STOCK plant only becomes enquirable when the nursery
+    # deliberately marks it so.
+    availability_status = Column(String(20), nullable=False, default="AVAILABLE")
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
     category = relationship("Category", back_populates="plants")
@@ -180,6 +210,15 @@ class BlogPost(Base):
     published_at = Column(DateTime, default=datetime.utcnow)
 
 
+# Feature 1 (out-of-stock product enquiry): extends the existing generic
+# contact-form Inquiry model rather than duplicating it with a parallel
+# table. The legacy 3-value status set (new/contacted/closed) stays valid
+# unchanged for old rows and the general "Enquire About This Plant" contact
+# link; these 3 new values are additive, for the dedicated product-enquiry
+# flow only.
+INQUIRY_STATUSES = ["new", "contacted", "preparing", "available", "rejected", "closed"]
+
+
 class Inquiry(Base):
     __tablename__ = "inquiries"
 
@@ -187,11 +226,38 @@ class Inquiry(Base):
     name = Column(String(120), nullable=False)
     mobile = Column(String(30), nullable=False)
     requirement = Column(Text, default="")
-    status = Column(String(30), default="new")  # new, contacted, closed
+    status = Column(String(30), default="new")  # see INQUIRY_STATUSES
     plant_id = Column(Integer, ForeignKey("plants.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # Added for the dedicated product-enquiry flow (Feature 1) -- all
+    # nullable/defaulted so existing generic contact-form rows are
+    # unaffected and the existing /inquiries endpoint needs no changes.
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True, index=True)
+    email = Column(String(180), default="")
+    quantity = Column(Integer, nullable=True)
+    enquiry_number = Column(String(30), nullable=True, unique=True, index=True)
+    plant_name_snapshot = Column(String(150), default="")
+    updated_at = Column(DateTime, nullable=True)
+
     plant = relationship("Plant")
+    customer = relationship("Customer")
+
+
+class InquiryStatusHistory(Base):
+    """Timestamped status history for Feature 1 enquiries only -- distinct
+    from AdminActivityLog (which is a shallow one-line-per-action log) and
+    from Developer Live Logs (which is unrelated runtime/job output)."""
+
+    __tablename__ = "inquiry_status_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    inquiry_id = Column(Integer, ForeignKey("inquiries.id"), nullable=False, index=True)
+    old_status = Column(String(30), default="")
+    new_status = Column(String(30), nullable=False)
+    note = Column(String(300), default="")
+    changed_by = Column(String(80), default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class SiteSetting(Base):
@@ -451,6 +517,32 @@ class Order(Base):
     delivery_city = Column(String(100), default="")
     delivery_state = Column(String(100), default="")
     delivery_pincode = Column(String(20), default="")
+
+    # Feature 2 (delivery feasibility + team confirmation): an independent
+    # axis from `status`/`payment_status`, same pattern as accounting_role/
+    # business_role_id being separate axes on AdminUser -- keeps the
+    # existing MAIN_STATUSES/_validate_status_transition forward-only order
+    # lifecycle completely untouched. `shipping_fee` above IS the final
+    # delivery cost once the team sets one; delivery_cost_calculated is
+    # kept separately only for transparency (section 12: show both).
+    team_confirmation_status = Column(String(30), nullable=False, default="PENDING")
+    delivery_feasibility = Column(String(30), nullable=False, default="PENDING")
+    delivery_distance_km = Column(Float, nullable=True)
+    delivery_cost_calculated = Column(Float, nullable=True)
+    delivery_cost_mode = Column(String(20), nullable=False, default="MANUAL")
+    delivery_review_notes = Column(Text, default="")
+    # Internal-only -- never included in the customer-facing OrderOut
+    # schema (section 16: don't expose internal reasons to the customer).
+    delivery_rejection_reason = Column(String(200), default="")
+    team_confirmed_by = Column(String(80), default="")
+    team_confirmed_at = Column(DateTime, nullable=True)
+
+    # New Order Alert + Call Management -- independent of the above.
+    call_status = Column(String(20), nullable=False, default="PENDING")
+    assigned_to = Column(String(80), default="")  # AdminUser.username, or "" = unassigned
+    order_acknowledged = Column(Boolean, nullable=False, default=False)
+    acknowledged_by = Column(String(80), default="")
+    acknowledged_at = Column(DateTime, nullable=True)
 
     tracking_number = Column(String(100), default="")
     delivery_partner = Column(String(100), default="")

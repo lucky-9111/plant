@@ -6,7 +6,14 @@ import { Loading, Empty } from "../components/Loading";
 import OrderTracker from "../components/OrderTracker";
 import CancelOrderModal from "../components/CancelOrderModal";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import { CANCELLABLE_STATUSES, paymentBadgeClass, statusLabel } from "../utils/orderStatus";
+import {
+  CANCELLABLE_STATUSES,
+  TEAM_CONFIRMATION_LABELS,
+  paymentBadgeClass,
+  statusLabel,
+  teamConfirmationBadgeClass,
+} from "../utils/orderStatus";
+import { loadRazorpayScript, withReference } from "../utils/razorpay";
 
 export default function OrderDetail() {
   const { id } = useParams();
@@ -18,6 +25,8 @@ export default function OrderDetail() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelError, setCancelError] = useState("");
   const cancelSubmittingRef = useRef(false);
+  const [payingNow, setPayingNow] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
 
   function load() {
     setOrder(null);
@@ -45,6 +54,83 @@ export default function OrderDetail() {
       />
     );
   if (session.type !== "customer") return <Navigate to="/" replace />;
+
+  // Feature 2's Pay Now flow: this is the ONLY place a Razorpay payment can
+  // be initiated for a normal order -- only reachable once the order card
+  // below shows team_confirmation_status === "CONFIRMED" (also enforced on
+  // the backend independently of this UI, see create-payment/verify-payment
+  // in app/routers/api_customer.py).
+  async function handlePayNow() {
+    setPaymentError("");
+    setPayingNow(true);
+    try {
+      const withRazorpayOrder = await api.post(`/customer/orders/${id}/create-payment`);
+      await loadRazorpayScript();
+
+      const rzp = new window.Razorpay({
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        amount: Math.round(withRazorpayOrder.total_amount * 100),
+        currency: "INR",
+        name: "Aaiji Nursery",
+        description: `Order #${withRazorpayOrder.id}`,
+        order_id: withRazorpayOrder.razorpay_order_id,
+        prefill: {
+          name: withRazorpayOrder.delivery_name,
+          contact: withRazorpayOrder.delivery_mobile,
+          email: session?.email || "",
+        },
+        theme: { color: "#40916c" },
+        handler: async function (response) {
+          try {
+            await api.post(`/customer/orders/${id}/verify-payment`, {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+            load();
+          } catch (err) {
+            setPaymentError(
+              withReference(
+                err.message ||
+                  "We couldn't verify your payment. If money was deducted, please contact support with your order ID.",
+                err
+              )
+            );
+          } finally {
+            setPayingNow(false);
+          }
+        },
+        modal: {
+          ondismiss: async function () {
+            setPayingNow(false);
+            setPaymentError("Payment was cancelled. You can try again.");
+            try {
+              await api.post(`/customer/orders/${id}/payment-failed`, { reason: "cancelled_by_user" });
+            } catch {
+              // best-effort status sync
+            }
+          },
+        },
+      });
+
+      rzp.on("payment.failed", async function (response) {
+        setPayingNow(false);
+        setPaymentError(response.error?.description || "Payment failed. Please try again.");
+        try {
+          await api.post(`/customer/orders/${id}/payment-failed`, {
+            reason: response.error?.description || "payment_failed",
+          });
+        } catch {
+          // best-effort status sync
+        }
+      });
+
+      rzp.open();
+    } catch (err) {
+      setPaymentError(withReference(err.message || "Could not start payment. Please try again.", err));
+      setPayingNow(false);
+    }
+  }
 
   async function handleCancel(remarks) {
     if (cancelSubmittingRef.current) return;
@@ -88,6 +174,69 @@ export default function OrderDetail() {
             <Loading />
           ) : (
             <>
+              {order.team_confirmation_status !== "CONFIRMED" && (
+                <div className="card" style={{ marginBottom: 20 }}>
+                  <div className="card-body">
+                    <span className={`badge ${teamConfirmationBadgeClass(order.team_confirmation_status)}`}>
+                      {TEAM_CONFIRMATION_LABELS[order.team_confirmation_status] || order.team_confirmation_status}
+                    </span>
+                    {order.team_confirmation_status === "PENDING" && (
+                      <p style={{ marginTop: 10, marginBottom: 0 }}>
+                        Our team will contact you within 1 hour to confirm delivery availability, charges, and the
+                        final order amount. Payment is not available until then.
+                      </p>
+                    )}
+                    {order.team_confirmation_status === "DELIVERY_UNAVAILABLE" && (
+                      <p style={{ marginTop: 10, marginBottom: 0 }}>
+                        We're sorry, our team is currently unable to deliver this order to your location. Our team
+                        will contact you if an alternative arrangement is possible.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {order.team_confirmation_status === "CONFIRMED" &&
+                order.payment_method === "Razorpay" &&
+                order.payment_status !== "Paid" && (
+                  <div className="card" style={{ marginBottom: 20 }}>
+                    <div className="card-body">
+                      <span className="badge badge-accent" style={{ marginBottom: 10 }}>
+                        Order Confirmed — Payment Pending
+                      </span>
+                      <p>Our team has confirmed we can deliver this order.</p>
+                      <div className="cart-summary-row">
+                        <span>Products</span>
+                        <span>&#8377;{order.subtotal}</span>
+                      </div>
+                      <div className="cart-summary-row">
+                        <span>Delivery</span>
+                        <span>&#8377;{order.shipping_fee}</span>
+                      </div>
+                      <div className="cart-summary-row cart-summary-total">
+                        <span>Total</span>
+                        <span>&#8377;{order.total_amount}</span>
+                      </div>
+
+                      {paymentError && (
+                        <div className="alert alert-error" style={{ marginTop: 12 }}>
+                          {paymentError}
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-block"
+                        style={{ marginTop: 12 }}
+                        disabled={payingNow}
+                        onClick={handlePayNow}
+                      >
+                        {payingNow ? "Opening Payment..." : "Pay Now"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
               <div className="card" style={{ marginBottom: 20 }}>
                 <div className="card-body">
                   <div className="orders-row-body" style={{ marginBottom: 0 }}>

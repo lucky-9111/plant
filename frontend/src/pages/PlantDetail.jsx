@@ -6,6 +6,7 @@ import AddToCartButton from "../components/AddToCartButton";
 import BuyNowButton from "../components/BuyNowButton";
 import WishlistButton from "../components/WishlistButton";
 import TraySelector from "../components/TraySelector";
+import EnquireModal from "../components/EnquireModal";
 import { Loading, Empty } from "../components/Loading";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
@@ -16,6 +17,7 @@ export default function PlantDetail() {
   const [notFound, setNotFound] = useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState(null);
   const [quantity, setQuantity] = useState(1);
+  const [showEnquireModal, setShowEnquireModal] = useState(false);
   useDocumentTitle(plant ? `${plant.name} | Aaiji Nursery` : "Plant Details | Aaiji Nursery");
 
   useEffect(() => {
@@ -75,10 +77,19 @@ export default function PlantDetail() {
                 <span
                   className={`badge ${plant.stock_quantity > 0 ? "badge-accent" : "badge-gold"}`}
                 >
-                  {plant.stock_quantity > 0 ? "In Stock" : "Out of Stock"}
+                  {plant.availability_status === "ENQUIRY_AVAILABLE"
+                    ? "Currently Out of Stock"
+                    : plant.stock_quantity > 0
+                    ? "In Stock"
+                    : "Out of Stock"}
                 </span>
                 {plant.sku && <span className="badge badge-muted">SKU: {plant.sku}</span>}
               </div>
+              {plant.availability_status === "ENQUIRY_AVAILABLE" && (
+                <p style={{ color: "var(--color-text-muted)", marginTop: -6, marginBottom: 14 }}>
+                  We may be able to prepare this plant on request.
+                </p>
+              )}
               {hasVariants ? (
                 <div style={{ marginBottom: 16 }}>
                   <TraySelector
@@ -129,20 +140,30 @@ export default function PlantDetail() {
                 </ul>
               )}
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                <AddToCartButton plant={plant} variantId={selectedVariantId} quantity={quantity} />
-                <BuyNowButton plant={plant} variantId={selectedVariantId} quantity={quantity} />
+                {plant.availability_status === "ENQUIRY_AVAILABLE" ? (
+                  <button type="button" className="btn btn-primary" onClick={() => setShowEnquireModal(true)}>
+                    Enquire Now
+                  </button>
+                ) : (
+                  <>
+                    <AddToCartButton plant={plant} variantId={selectedVariantId} quantity={quantity} />
+                    <BuyNowButton plant={plant} variantId={selectedVariantId} quantity={quantity} />
+                    <Link
+                      to={`/contact?plant_id=${plant.id}&plant_name=${encodeURIComponent(plant.name)}`}
+                      className="btn btn-outline dark"
+                    >
+                      Enquire About This Plant
+                    </Link>
+                  </>
+                )}
                 <WishlistButton plant={plant} />
-                <Link
-                  to={`/contact?plant_id=${plant.id}&plant_name=${encodeURIComponent(plant.name)}`}
-                  className="btn btn-outline dark"
-                >
-                  Enquire About This Plant
-                </Link>
               </div>
             </div>
           </div>
         </div>
       </section>
+
+      {showEnquireModal && <EnquireModal plant={plant} onClose={() => setShowEnquireModal(false)} />}
 
       {related && related.length > 0 && (
         <section className="section section-alt">

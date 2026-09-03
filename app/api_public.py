@@ -20,7 +20,9 @@ from app.models import (
     Customer,
     CustomerActivityLog,
     GalleryImage,
+    INQUIRY_STATUSES,
     Inquiry,
+    InquiryStatusHistory,
     LoginAttempt,
     Order,
     OrderItem,
@@ -33,6 +35,7 @@ from app.routers.api_admin import log_activity
 from app.schemas import (
     BlogPostOut,
     CategoryOut,
+    EnquiryCreateIn,
     FAQOut,
     GalleryImageOut,
     InquiryIn,
@@ -270,6 +273,43 @@ def create_inquiry(payload: InquiryIn, db: Session = Depends(get_db)):
         plant_id=plant_id,
     )
     db.add(inquiry)
+    db.commit()
+    db.refresh(inquiry)
+    return inquiry
+
+
+@router.post("/enquiries", response_model=InquiryOut, status_code=201)
+def create_enquiry(payload: EnquiryCreateIn, request: Request, db: Session = Depends(get_db)):
+    """Feature 1's dedicated "Enquire Now" flow, for a Plant explicitly
+    marked ENQUIRY_AVAILABLE by the nursery -- separate endpoint/schema
+    from the generic /inquiries contact form (section 21: never let this
+    trigger delivery costing, checkout, or payment; it only ever creates an
+    Inquiry row for the team to act on)."""
+    plant = db.query(Plant).filter(Plant.id == payload.plant_id).first()
+    if not plant:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    # Optional: attach the logged-in customer if there is one, without
+    # requiring login -- a guest can still enquire (matches the existing
+    # generic /inquiries endpoint's openness).
+    customer_id = request.session.get("customer_id")
+
+    enquiry_number = f"ENQ-{datetime.utcnow():%Y%m%d}-{secrets.token_hex(2)}"
+    inquiry = Inquiry(
+        name=payload.name.strip(),
+        mobile=payload.mobile.strip(),
+        email=payload.email.strip(),
+        requirement=payload.message.strip(),
+        quantity=payload.quantity,
+        plant_id=plant.id,
+        plant_name_snapshot=plant.name,
+        customer_id=customer_id,
+        enquiry_number=enquiry_number,
+        status="new",
+    )
+    db.add(inquiry)
+    db.flush()
+    db.add(InquiryStatusHistory(inquiry_id=inquiry.id, old_status="", new_status="new", note="Enquiry submitted by customer"))
     db.commit()
     db.refresh(inquiry)
     return inquiry

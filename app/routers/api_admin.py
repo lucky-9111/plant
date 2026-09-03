@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -25,13 +25,20 @@ from app.models import (
     Category,
     Customer,
     CustomerActivityLog,
+    CALL_STATUSES,
+    DELIVERY_COST_MODES,
+    DELIVERY_FEASIBILITY_STATUSES,
+    DELIVERY_REJECTION_REASONS,
     GalleryImage,
+    INQUIRY_STATUSES,
     Inquiry,
+    InquiryStatusHistory,
     MAIN_STATUSES,
     Order,
     OrderItem,
     OrderStatusHistory,
     PAYMENT_STATUSES,
+    PLANT_AVAILABILITY_STATUSES,
     Plant,
     PlantVariant,
     PricingPlan,
@@ -42,7 +49,12 @@ from app.models import (
     SiteSetting,
     Testimonial,
 )
-from app.notifications import notify_order_cancelled, notify_order_status
+from app.notifications import (
+    notify_delivery_confirmed,
+    notify_delivery_unavailable,
+    notify_order_cancelled,
+    notify_order_status,
+)
 from app.schemas import (
     ActivityLogOut,
     AdminPasswordResetIn,
@@ -61,10 +73,18 @@ from app.schemas import (
     GalleryImageIn,
     GalleryImageOut,
     InquiryOut,
+    InquiryStatusHistoryOut,
     InquiryStatusIn,
+    OrderAdminOut,
     OrderAdminUpdateIn,
+    OrderAssignIn,
+    OrderCallStatusIn,
     OrderCancelIn,
+    OrderConfirmIn,
+    OrderDeliveryReviewIn,
     OrderOut,
+    OrderRejectDeliveryIn,
+    OrderSummaryAdminOut,
     OrderSummaryOut,
     PlantIn,
     PlantOut,
@@ -127,6 +147,14 @@ def _validate_variants(variants: list[PlantVariantIn], price: float) -> None:
         if v.tray_size in seen_sizes:
             raise HTTPException(status_code=400, detail=f"Duplicate tray size: {v.tray_size}")
         seen_sizes.add(v.tray_size)
+
+
+def _validate_availability_status(value: str) -> None:
+    if value not in PLANT_AVAILABILITY_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"availability_status must be one of: {', '.join(PLANT_AVAILABILITY_STATUSES)}",
+        )
 
 
 # ---------- Auth ----------
@@ -315,8 +343,31 @@ def dashboard(admin: str = Depends(get_current_admin), db: Session = Depends(get
         .limit(5)
         .all()
     )
+
+    # New Order Alert + Call Management stats (section 9).
+    order_stats = {
+        "new_orders": db.query(Order).filter(Order.status == "Pending").count(),
+        "calls_pending": db.query(Order).filter(
+            Order.status == "Pending", Order.call_status.in_(["PENDING", "NO_ANSWER", "CALL_BACK"])
+        ).count(),
+        "preparing": db.query(Order).filter(Order.status == "Processing").count(),
+        "out_for_delivery": db.query(Order).filter(Order.status == "Out For Delivery").count(),
+        "delivered": db.query(Order).filter(Order.status == "Delivered").count(),
+    }
+
+    recent_new_orders = (
+        db.query(Order)
+        .options(joinedload(Order.customer))
+        .filter(Order.status == "Pending")
+        .order_by(Order.created_at.desc())
+        .limit(10)
+        .all()
+    )
+
     return {
         "counts": counts,
+        "order_stats": order_stats,
+        "recent_new_orders": [OrderSummaryAdminOut.model_validate(o) for o in recent_new_orders],
         "recent_inquiries": [InquiryOut.model_validate(i) for i in recent_inquiries],
     }
 
@@ -414,6 +465,7 @@ def create_plant(
     payload: PlantIn, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)
 ):
     _validate_variants(payload.variants or [], payload.price)
+    _validate_availability_status(payload.availability_status)
     item = Plant(
         name=payload.name.strip(),
         slug=unique_slug(db, Plant, payload.name),
@@ -428,6 +480,7 @@ def create_plant(
         features=payload.features.strip(),
         is_featured=payload.is_featured,
         is_active=payload.is_active,
+        availability_status=payload.availability_status,
     )
     db.add(item)
     db.flush()
@@ -451,6 +504,7 @@ def update_plant(
 ):
     item = get_or_404(db, Plant, item_id)
     _validate_variants(payload.variants or [], payload.price)
+    _validate_availability_status(payload.availability_status)
     if item.name != payload.name.strip():
         item.slug = unique_slug(db, Plant, payload.name, exclude_id=item.id)
     item.name = payload.name.strip()
@@ -465,6 +519,7 @@ def update_plant(
     item.features = payload.features.strip()
     item.is_featured = payload.is_featured
     item.is_active = payload.is_active
+    item.availability_status = payload.availability_status
 
     if payload.variants is not None:
         db.query(PlantVariant).filter(PlantVariant.plant_id == item.id).delete()
@@ -880,13 +935,35 @@ def delete_blog_post(
 # ---------- Inquiries ----------
 
 @router.get("/inquiries", dependencies=[Depends(require_permission("customers", "VIEW"))], response_model=list[InquiryOut])
-def list_inquiries(admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
-    return (
-        db.query(Inquiry)
-        .options(joinedload(Inquiry.plant))
-        .order_by(Inquiry.created_at.desc())
-        .all()
-    )
+def list_inquiries(
+    q: Optional[str] = None,
+    status: Optional[str] = None,
+    plant_id: Optional[int] = None,
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
+    admin: str = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    query = db.query(Inquiry).options(joinedload(Inquiry.plant))
+    if q:
+        like = f"%{q.strip()}%"
+        query = query.filter(
+            or_(
+                Inquiry.name.ilike(like),
+                Inquiry.mobile.ilike(like),
+                Inquiry.enquiry_number.ilike(like),
+                Inquiry.plant_name_snapshot.ilike(like),
+            )
+        )
+    if status:
+        query = query.filter(Inquiry.status == status)
+    if plant_id:
+        query = query.filter(Inquiry.plant_id == plant_id)
+    if date_from:
+        query = query.filter(Inquiry.created_at >= date_from)
+    if date_to:
+        query = query.filter(Inquiry.created_at < date_to + timedelta(days=1))
+    return query.order_by(Inquiry.created_at.desc()).all()
 
 
 @router.put("/inquiries/{item_id}/status", dependencies=[Depends(require_permission("customers", "EDIT"))], response_model=InquiryOut)
@@ -896,11 +973,31 @@ def update_inquiry_status(
     admin: str = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
+    if payload.status not in INQUIRY_STATUSES:
+        raise HTTPException(status_code=400, detail=f"status must be one of: {', '.join(INQUIRY_STATUSES)}")
     item = get_or_404(db, Inquiry, item_id)
+    old_status = item.status
     item.status = payload.status
+    item.updated_at = datetime.utcnow()
+    db.add(InquiryStatusHistory(inquiry_id=item.id, old_status=old_status, new_status=payload.status, note=payload.note.strip(), changed_by=admin))
     db.commit()
     db.refresh(item)
     return item
+
+
+@router.get(
+    "/inquiries/{item_id}/history",
+    dependencies=[Depends(require_permission("customers", "VIEW"))],
+    response_model=list[InquiryStatusHistoryOut],
+)
+def get_inquiry_history(item_id: int, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
+    get_or_404(db, Inquiry, item_id)
+    return (
+        db.query(InquiryStatusHistory)
+        .filter(InquiryStatusHistory.inquiry_id == item_id)
+        .order_by(InquiryStatusHistory.created_at.asc())
+        .all()
+    )
 
 
 @router.delete("/inquiries/{item_id}", dependencies=[Depends(require_permission("customers", "DELETE"))], status_code=204)
@@ -946,7 +1043,7 @@ def _validate_status_transition(current: str, new: str) -> None:
         )
 
 
-@router.get("/orders", dependencies=[Depends(require_permission("orders", "VIEW"))], response_model=list[OrderSummaryOut])
+@router.get("/orders", dependencies=[Depends(require_permission("orders", "VIEW"))], response_model=list[OrderSummaryAdminOut])
 def list_orders(
     response: Response,
     search: Optional[str] = None,
@@ -1002,12 +1099,12 @@ def list_orders(
     return items
 
 
-@router.get("/orders/{order_id}", dependencies=[Depends(require_permission("orders", "VIEW"))], response_model=OrderOut)
+@router.get("/orders/{order_id}", dependencies=[Depends(require_permission("orders", "VIEW"))], response_model=OrderAdminOut)
 def get_order(order_id: int, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
     return _get_order_or_404(db, order_id)
 
 
-@router.put("/orders/{order_id}/status", dependencies=[Depends(require_permission("orders", "EDIT"))], response_model=OrderOut)
+@router.put("/orders/{order_id}/status", dependencies=[Depends(require_permission("orders", "EDIT"))], response_model=OrderAdminOut)
 def update_order_status(
     order_id: int,
     payload: OrderAdminUpdateIn,
@@ -1019,6 +1116,14 @@ def update_order_status(
     status_changed = False
 
     if payload.status is not None and payload.status != order.status:
+        # Feature 2: an order can't progress past its initial "Pending"
+        # placement until the team has confirmed delivery feasibility and
+        # cost -- mirrors the payment-side guard in verify_payment().
+        if order.team_confirmation_status != "CONFIRMED":
+            raise HTTPException(
+                status_code=400,
+                detail="This order is still awaiting team delivery confirmation. Confirm or reject delivery first.",
+            )
         _validate_status_transition(order.status, payload.status)
         order.status = payload.status
         status_changed = True
@@ -1058,7 +1163,7 @@ def update_order_status(
     return order
 
 
-@router.post("/orders/{order_id}/cancel", dependencies=[Depends(require_permission("orders", "CANCEL"))], response_model=OrderOut)
+@router.post("/orders/{order_id}/cancel", dependencies=[Depends(require_permission("orders", "CANCEL"))], response_model=OrderAdminOut)
 def admin_cancel_order(
     order_id: int,
     payload: OrderCancelIn,
@@ -1098,6 +1203,253 @@ def admin_cancel_order(
     order = _get_order_or_404(db, order_id)
     log_activity(db, admin, "order_cancel", f"Order #{order.id} cancelled")
     notify_order_cancelled(db, order, old_status, cancelled_by="admin", reason=payload.remarks)
+    return order
+
+
+# ---------- New Order Alert + Call Management ----------
+# RBAC: reuses the existing "orders" module (VIEW/EDIT), same gate as the
+# rest of this Orders section -- no new permission module needed.
+
+@router.post(
+    "/orders/{order_id}/acknowledge",
+    dependencies=[Depends(require_permission("orders", "EDIT"))],
+    response_model=OrderAdminOut,
+)
+def acknowledge_order(order_id: int, admin: str = Depends(get_current_admin), db: Session = Depends(get_db)):
+    """Marks the new-order alert as seen/handled (section 7) -- the order
+    itself stays fully visible in the Orders list/queue until its workflow
+    actually completes; only the "still needs someone to look at it" signal
+    is cleared."""
+    order = _get_order_or_404(db, order_id)
+    if not order.order_acknowledged:
+        order.order_acknowledged = True
+        order.acknowledged_by = admin
+        order.acknowledged_at = datetime.utcnow()
+        db.commit()
+    return _get_order_or_404(db, order_id)
+
+
+@router.post(
+    "/orders/{order_id}/assign",
+    dependencies=[Depends(require_permission("orders", "EDIT"))],
+    response_model=OrderAdminOut,
+)
+def assign_order(
+    order_id: int,
+    payload: OrderAssignIn,
+    admin: str = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    order = _get_order_or_404(db, order_id)
+    target = (payload.assigned_to or "").strip()
+    if target and not db.query(AdminUser).filter(AdminUser.username == target).first():
+        raise HTTPException(status_code=400, detail="No such admin user")
+    order.assigned_to = target
+    db.commit()
+    log_activity(db, admin, "order_assigned", f"Order #{order.id} -> {target or 'Unassigned'}")
+    return _get_order_or_404(db, order_id)
+
+
+@router.put(
+    "/orders/{order_id}/call-status",
+    dependencies=[Depends(require_permission("orders", "EDIT"))],
+    response_model=OrderAdminOut,
+)
+def update_call_status(
+    order_id: int,
+    payload: OrderCallStatusIn,
+    admin: str = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    if payload.call_status not in CALL_STATUSES:
+        raise HTTPException(status_code=400, detail=f"call_status must be one of: {', '.join(CALL_STATUSES)}")
+    order = _get_order_or_404(db, order_id)
+    order.call_status = payload.call_status
+    # remarks is shared with the customer (OrderOut.history) -- keep it to
+    # the same state word the customer can already see (call_status isn't
+    # even in their schema, but there's no reason to add internal call
+    # commentary like "tried 3 times, no pickup" into shared history).
+    db.add(
+        OrderStatusHistory(
+            order_id=order.id,
+            old_status=order.status,
+            new_status=order.status,
+            updated_by=admin,
+            remarks=f"Call status updated: {payload.call_status}",
+        )
+    )
+    db.commit()
+    log_activity(db, admin, "order_call_status", f"Order #{order.id}: {payload.call_status}")
+    return _get_order_or_404(db, order_id)
+
+
+# ---------- Delivery Review + Team Confirmation (Feature 2) ----------
+# RBAC: gated on the same "orders" module's APPROVE action (section 24 --
+# "only authorized team/admin users should be able to review delivery,
+# set cost, approve/reject, confirm order"). No new permission module was
+# needed since APPROVE already exists in the RBAC action set.
+
+DELIVERY_BASE_FEE = 50.0
+DELIVERY_RATE_PER_KM = 15.0
+
+
+@router.put(
+    "/orders/{order_id}/delivery-review",
+    dependencies=[Depends(require_permission("orders", "APPROVE"))],
+    response_model=OrderAdminOut,
+)
+def review_order_delivery(
+    order_id: int,
+    payload: OrderDeliveryReviewIn,
+    admin: str = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Saves the team's feasibility/cost review WITHOUT confirming the
+    order yet (section 10-12) -- a separate, final step (POST .../confirm)
+    actually enables payment. Lets the team mark NEEDS_REVIEW or jot notes
+    over multiple passes before committing to a final decision."""
+    order = _get_order_or_404(db, order_id)
+    if order.team_confirmation_status == "CONFIRMED":
+        raise HTTPException(status_code=400, detail="This order has already been confirmed.")
+    if payload.delivery_feasibility not in DELIVERY_FEASIBILITY_STATUSES:
+        raise HTTPException(status_code=400, detail=f"delivery_feasibility must be one of: {', '.join(DELIVERY_FEASIBILITY_STATUSES)}")
+    if payload.cost_mode not in DELIVERY_COST_MODES:
+        raise HTTPException(status_code=400, detail=f"cost_mode must be one of: {', '.join(DELIVERY_COST_MODES)}")
+
+    order.delivery_feasibility = payload.delivery_feasibility
+    order.delivery_distance_km = payload.distance_km
+    order.delivery_cost_mode = payload.cost_mode
+    order.delivery_review_notes = payload.notes.strip()
+
+    if payload.cost_mode == "FREE":
+        order.delivery_cost_calculated = 0
+        order.shipping_fee = 0
+    elif payload.cost_mode == "AUTO":
+        if payload.distance_km is None:
+            raise HTTPException(status_code=400, detail="distance_km is required for AUTO delivery cost")
+        order.delivery_cost_calculated = round(DELIVERY_BASE_FEE + payload.distance_km * DELIVERY_RATE_PER_KM, 2)
+        order.shipping_fee = payload.final_delivery_cost if payload.final_delivery_cost is not None else order.delivery_cost_calculated
+    else:  # MANUAL
+        order.delivery_cost_calculated = None
+        if payload.final_delivery_cost is None:
+            raise HTTPException(status_code=400, detail="final_delivery_cost is required for MANUAL delivery cost")
+        order.shipping_fee = payload.final_delivery_cost
+
+    if order.shipping_fee < 0:
+        raise HTTPException(status_code=400, detail="Delivery cost cannot be negative")
+    order.total_amount = order.subtotal + order.shipping_fee
+
+    # remarks is shared with the customer (OrderOut.history) -- keep it to
+    # the same numbers the customer already sees elsewhere in the order
+    # (feasibility state, final delivery cost), never the team's free-text
+    # internal notes (payload.notes, saved separately on the order but
+    # deliberately not surfaced through history).
+    db.add(
+        OrderStatusHistory(
+            order_id=order.id,
+            old_status=order.status,
+            new_status=order.status,
+            updated_by=admin,
+            remarks=f"Delivery review updated: {order.delivery_feasibility}, delivery charge Rs.{order.shipping_fee}",
+        )
+    )
+    db.commit()
+    sync_order_to_accounting(order.id)
+    log_activity(db, admin, "order_delivery_review", f"Order #{order.id}: {order.delivery_feasibility}, Rs.{order.shipping_fee}")
+    return _get_order_or_404(db, order_id)
+
+
+@router.post(
+    "/orders/{order_id}/confirm",
+    dependencies=[Depends(require_permission("orders", "APPROVE"))],
+    response_model=OrderAdminOut,
+)
+def confirm_order_delivery(
+    order_id: int,
+    payload: OrderConfirmIn,
+    admin: str = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    order = _get_order_or_404(db, order_id)
+    if order.team_confirmation_status == "CONFIRMED":
+        raise HTTPException(status_code=400, detail="This order is already confirmed.")
+    if order.delivery_feasibility != "APPROVED":
+        raise HTTPException(status_code=400, detail="Delivery must be marked APPROVED before confirming the order.")
+    if order.delivery_cost_mode != "FREE" and order.shipping_fee <= 0 and order.delivery_cost_calculated is None:
+        raise HTTPException(status_code=400, detail="Set a delivery cost before confirming the order.")
+
+    order.team_confirmation_status = "CONFIRMED"
+    order.team_confirmed_by = admin
+    order.team_confirmed_at = datetime.utcnow()
+    db.add(
+        OrderStatusHistory(
+            order_id=order.id,
+            old_status=order.status,
+            new_status=order.status,
+            updated_by=admin,
+            remarks=payload.remarks.strip() or "Order confirmed by team -- delivery approved, payment enabled",
+        )
+    )
+    db.commit()
+    sync_order_to_accounting(order.id)
+
+    order = _get_order_or_404(db, order_id)
+    log_activity(db, admin, "order_confirmed", f"Order #{order.id}")
+    notify_delivery_confirmed(order)
+    return order
+
+
+@router.post(
+    "/orders/{order_id}/reject-delivery",
+    dependencies=[Depends(require_permission("orders", "APPROVE"))],
+    response_model=OrderAdminOut,
+)
+def reject_order_delivery(
+    order_id: int,
+    payload: OrderRejectDeliveryIn,
+    admin: str = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    order = _get_order_or_404(db, order_id)
+    if order.team_confirmation_status == "CONFIRMED":
+        raise HTTPException(status_code=400, detail="This order has already been confirmed and cannot be rejected here -- cancel it instead.")
+    if payload.reason not in DELIVERY_REJECTION_REASONS:
+        raise HTTPException(status_code=400, detail=f"reason must be one of: {', '.join(DELIVERY_REJECTION_REASONS)}")
+
+    # DELIVERY_UNAVAILABLE is a dead end for this order -- the customer can
+    # never complete it, so the stock reserved at checkout must go back to
+    # inventory (same restoration logic as admin_cancel_order above).
+    for item in order.items:
+        if item.variant_id:
+            variant = db.query(PlantVariant).filter(PlantVariant.id == item.variant_id).first()
+            if variant:
+                variant.stock_quantity += item.quantity
+        elif item.plant_id:
+            plant = db.query(Plant).filter(Plant.id == item.plant_id).first()
+            if plant:
+                plant.stock_quantity += item.quantity
+
+    order.team_confirmation_status = "DELIVERY_UNAVAILABLE"
+    order.delivery_feasibility = "NOT_AVAILABLE"
+    order.delivery_rejection_reason = payload.detail.strip() if payload.reason == "Other" and payload.detail.strip() else payload.reason
+    # remarks is shared with the customer (OrderOut.history) -- the actual
+    # internal reason lives only in delivery_rejection_reason, which is
+    # excluded from the customer-facing schema (section 16).
+    db.add(
+        OrderStatusHistory(
+            order_id=order.id,
+            old_status=order.status,
+            new_status=order.status,
+            updated_by=admin,
+            remarks="Delivery unavailable for this order",
+        )
+    )
+    db.commit()
+    sync_order_to_accounting(order.id)
+
+    order = _get_order_or_404(db, order_id)
+    log_activity(db, admin, "order_delivery_rejected", f"Order #{order.id}: {order.delivery_rejection_reason}")
+    notify_delivery_unavailable(order)
     return order
 
 

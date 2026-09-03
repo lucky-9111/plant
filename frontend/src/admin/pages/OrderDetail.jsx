@@ -4,12 +4,23 @@ import { api } from "../../api";
 import { Loading, Empty } from "../../components/Loading";
 import OrderTracker from "../../components/OrderTracker";
 import CancelOrderModal from "../../components/CancelOrderModal";
+import { useOrderAlerts } from "../OrderAlertContext";
 import {
   CANCELLABLE_STATUSES,
+  TEAM_CONFIRMATION_LABELS,
   TRACKER_STEPS,
   paymentBadgeClass,
   statusBadgeClass,
+  teamConfirmationBadgeClass,
 } from "../../utils/orderStatus";
+
+const FEASIBILITY_OPTIONS = ["APPROVED", "NOT_AVAILABLE", "NEEDS_REVIEW"];
+const COST_MODES = ["MANUAL", "AUTO", "FREE"];
+const REJECTION_REASONS = ["Too far", "No delivery route", "Vehicle unavailable", "Quantity too large", "Temporary restriction", "Other"];
+const CALL_STATUSES = ["PENDING", "CALLED", "NO_ANSWER", "CALL_BACK", "CONFIRMED"];
+const CALL_STATUS_LABELS = {
+  PENDING: "Pending", CALLED: "Called", NO_ANSWER: "No Answer", CALL_BACK: "Call Back Later", CONFIRMED: "Confirmed",
+};
 
 export default function AdminOrderDetail() {
   const { id } = useParams();
@@ -25,6 +36,27 @@ export default function AdminOrderDetail() {
   const statusSubmittingRef = useRef(false);
   const cancelSubmittingRef = useRef(false);
 
+  // Feature 2: delivery review form state
+  const [feasibility, setFeasibility] = useState("");
+  const [distanceKm, setDistanceKm] = useState("");
+  const [costMode, setCostMode] = useState("MANUAL");
+  const [finalCost, setFinalCost] = useState("");
+  const [reviewNotes, setReviewNotes] = useState("");
+  const [savingReview, setSavingReview] = useState(false);
+  const [confirmingOrder, setConfirmingOrder] = useState(false);
+  const [rejectingDelivery, setRejectingDelivery] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState(REJECTION_REASONS[0]);
+  const [rejectDetail, setRejectDetail] = useState("");
+  const [reviewError, setReviewError] = useState("");
+
+  // New Order Alert + Call Management
+  const { dismissAlert } = useOrderAlerts();
+  const [admins, setAdmins] = useState([]);
+  const [updatingCallStatus, setUpdatingCallStatus] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+  const [callError, setCallError] = useState("");
+
   function load() {
     setOrder(null);
     setError("");
@@ -33,11 +65,52 @@ export default function AdminOrderDetail() {
       .then((data) => {
         setOrder(data);
         setSelectedStatus(data.status);
+        setFeasibility(data.delivery_feasibility === "PENDING" ? "" : data.delivery_feasibility);
+        setDistanceKm(data.delivery_distance_km ?? "");
+        setCostMode(data.delivery_cost_mode || "MANUAL");
+        setFinalCost(data.shipping_fee || "");
+        // Opening the order counts as the team having seen the new-order
+        // alert (section 7), regardless of whether they got here via the
+        // bell/dashboard or just browsed the Orders list directly.
+        if (!data.order_acknowledged) {
+          api.post(`/admin/orders/${id}/acknowledge`).catch(() => {});
+        }
+        dismissAlert(Number(id));
       })
       .catch((err) => setError(err.message || "Could not load this order."));
   }
 
   useEffect(load, [id]);
+
+  useEffect(() => {
+    api.get("/admin/admins").then(setAdmins).catch(() => {});
+  }, []);
+
+  async function updateCallStatus(newStatus) {
+    setUpdatingCallStatus(true);
+    setCallError("");
+    try {
+      await api.put(`/admin/orders/${id}/call-status`, { call_status: newStatus });
+      load();
+    } catch (err) {
+      setCallError(err.message || "Could not update call status.");
+    } finally {
+      setUpdatingCallStatus(false);
+    }
+  }
+
+  async function assignTo(username) {
+    setAssigning(true);
+    setCallError("");
+    try {
+      await api.post(`/admin/orders/${id}/assign`, { assigned_to: username || null });
+      load();
+    } catch (err) {
+      setCallError(err.message || "Could not assign this order.");
+    } finally {
+      setAssigning(false);
+    }
+  }
 
   useEffect(() => {
     if (!toast) return;
@@ -60,6 +133,57 @@ export default function AdminOrderDetail() {
     } finally {
       statusSubmittingRef.current = false;
       setUpdating(false);
+    }
+  }
+
+  async function saveDeliveryReview(e) {
+    e.preventDefault();
+    setSavingReview(true);
+    setReviewError("");
+    try {
+      await api.put(`/admin/orders/${id}/delivery-review`, {
+        delivery_feasibility: feasibility,
+        distance_km: distanceKm === "" ? null : Number(distanceKm),
+        cost_mode: costMode,
+        final_delivery_cost: costMode === "FREE" ? 0 : finalCost === "" ? null : Number(finalCost),
+        notes: reviewNotes,
+      });
+      setToast("Delivery review saved");
+      load();
+    } catch (err) {
+      setReviewError(err.message || "Could not save delivery review.");
+    } finally {
+      setSavingReview(false);
+    }
+  }
+
+  async function handleConfirmOrder() {
+    if (!confirm("Confirm this order? The customer will be able to pay once confirmed.")) return;
+    setConfirmingOrder(true);
+    setReviewError("");
+    try {
+      await api.post(`/admin/orders/${id}/confirm`, {});
+      setToast("Order confirmed -- payment enabled for the customer");
+      load();
+    } catch (err) {
+      setReviewError(err.message || "Could not confirm this order.");
+    } finally {
+      setConfirmingOrder(false);
+    }
+  }
+
+  async function handleRejectDelivery() {
+    setRejectingDelivery(true);
+    setReviewError("");
+    try {
+      await api.post(`/admin/orders/${id}/reject-delivery`, { reason: rejectReason, detail: rejectDetail });
+      setShowRejectModal(false);
+      setToast("Delivery marked unavailable -- customer notified");
+      load();
+    } catch (err) {
+      setReviewError(err.message || "Could not reject delivery for this order.");
+    } finally {
+      setRejectingDelivery(false);
     }
   }
 
@@ -181,6 +305,200 @@ export default function AdminOrderDetail() {
           {/* Right / sidebar column */}
           <div>
             <div className="admin-form-card" style={{ maxWidth: "none", marginBottom: 20 }}>
+              <h2 style={{ fontSize: "1.1rem", marginTop: 0 }}>Delivery Review</h2>
+
+              <span className={`badge ${teamConfirmationBadgeClass(order.team_confirmation_status)}`} style={{ marginBottom: 14, display: "inline-block" }}>
+                {TEAM_CONFIRMATION_LABELS[order.team_confirmation_status] || order.team_confirmation_status}
+              </span>
+
+              {reviewError && (
+                <div className="alert alert-error" style={{ marginBottom: 14 }}>
+                  {reviewError}
+                </div>
+              )}
+
+              {order.team_confirmation_status === "DELIVERY_UNAVAILABLE" && (
+                <p style={{ color: "var(--color-text-muted)" }}>
+                  Internal reason: <strong>{order.delivery_rejection_reason || "-"}</strong>
+                </p>
+              )}
+
+              {order.team_confirmation_status === "CONFIRMED" ? (
+                <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
+                  Confirmed by {order.team_confirmed_by || "-"} on{" "}
+                  {order.team_confirmed_at ? new Date(order.team_confirmed_at).toLocaleString() : "-"}. Delivery
+                  charge: &#8377;{order.shipping_fee}.
+                </p>
+              ) : order.team_confirmation_status === "PENDING" ? (
+                <form onSubmit={saveDeliveryReview}>
+                  <div className="form-group">
+                    <label>Delivery Feasibility</label>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {FEASIBILITY_OPTIONS.map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          className={`btn btn-sm ${feasibility === opt ? "btn-primary" : "btn-outline dark"}`}
+                          onClick={() => setFeasibility(opt)}
+                        >
+                          {opt.replace("_", " ")}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="distance-km">Distance (km, optional)</label>
+                    <input
+                      id="distance-km"
+                      type="number"
+                      min="0"
+                      className="form-control"
+                      value={distanceKm}
+                      onChange={(e) => setDistanceKm(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="cost-mode">Delivery Cost Mode</label>
+                    <select
+                      id="cost-mode"
+                      className="form-control"
+                      value={costMode}
+                      onChange={(e) => setCostMode(e.target.value)}
+                    >
+                      {COST_MODES.map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {costMode === "AUTO" && order.delivery_cost_calculated != null && (
+                    <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+                      Calculated (₹50 base + ₹15/km): &#8377;{order.delivery_cost_calculated}
+                    </p>
+                  )}
+
+                  {costMode !== "FREE" && (
+                    <div className="form-group">
+                      <label htmlFor="final-cost">Final Delivery Cost (&#8377;)</label>
+                      <input
+                        id="final-cost"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="form-control"
+                        required
+                        value={finalCost}
+                        onChange={(e) => setFinalCost(e.target.value)}
+                      />
+                    </div>
+                  )}
+
+                  <div className="form-group">
+                    <label htmlFor="review-notes">Delivery Notes (internal)</label>
+                    <textarea
+                      id="review-notes"
+                      className="form-control"
+                      rows={2}
+                      value={reviewNotes}
+                      onChange={(e) => setReviewNotes(e.target.value)}
+                    />
+                  </div>
+
+                  <button type="submit" className="btn btn-outline dark btn-block" disabled={savingReview || !feasibility}>
+                    {savingReview ? "Saving..." : "Save Delivery Review"}
+                  </button>
+
+                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      style={{ flex: 1 }}
+                      disabled={confirmingOrder || order.delivery_feasibility !== "APPROVED"}
+                      onClick={handleConfirmOrder}
+                    >
+                      {confirmingOrder ? "Confirming..." : "Confirm Order"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-danger"
+                      style={{ flex: 1 }}
+                      onClick={() => setShowRejectModal(true)}
+                    >
+                      Reject Order
+                    </button>
+                  </div>
+                  {order.delivery_feasibility !== "APPROVED" && (
+                    <p style={{ color: "var(--color-text-muted)", fontSize: "0.8rem", marginTop: 8 }}>
+                      Save the review with feasibility APPROVED before confirming.
+                    </p>
+                  )}
+                </form>
+              ) : null}
+            </div>
+
+            <div className="admin-form-card" style={{ maxWidth: "none", marginBottom: 20 }}>
+              <h2 style={{ fontSize: "1.1rem", marginTop: 0 }}>Call Workflow</h2>
+
+              {callError && (
+                <div className="alert alert-error" style={{ marginBottom: 14 }}>
+                  {callError}
+                </div>
+              )}
+
+              <div className="form-group">
+                <label>Call Status</label>
+                <div>
+                  <span className={`badge ${order.call_status === "CONFIRMED" ? "badge-accent" : order.call_status === "PENDING" ? "badge-gold" : "badge-muted"}`}>
+                    {CALL_STATUS_LABELS[order.call_status] || order.call_status}
+                  </span>
+                </div>
+              </div>
+
+              {order.delivery_mobile && (
+                <a
+                  href={`tel:${order.delivery_mobile}`}
+                  className="btn btn-primary btn-block"
+                  style={{ marginBottom: 12 }}
+                  onClick={() => { if (order.call_status === "PENDING") updateCallStatus("CALLED"); }}
+                >
+                  📞 Call Customer ({order.delivery_mobile})
+                </a>
+              )}
+
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {CALL_STATUSES.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className={`btn btn-sm ${order.call_status === s ? "btn-primary" : "btn-outline dark"}`}
+                    disabled={updatingCallStatus || order.call_status === s}
+                    onClick={() => updateCallStatus(s)}
+                  >
+                    {CALL_STATUS_LABELS[s]}
+                  </button>
+                ))}
+              </div>
+
+              <div className="form-group" style={{ marginTop: 16, marginBottom: 0 }}>
+                <label htmlFor="assign-select">Assigned To</label>
+                <select
+                  id="assign-select"
+                  className="form-control"
+                  value={order.assigned_to || ""}
+                  disabled={assigning}
+                  onChange={(e) => assignTo(e.target.value)}
+                >
+                  <option value="">Unassigned</option>
+                  {admins.map((a) => (
+                    <option key={a.id} value={a.username}>{a.username}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="admin-form-card" style={{ maxWidth: "none", marginBottom: 20 }}>
               <h2 style={{ fontSize: "1.1rem", marginTop: 0 }}>Customer Information</h2>
               <div className="form-group">
                 <label>Name</label>
@@ -232,7 +550,9 @@ export default function AdminOrderDetail() {
                 Current Status: <strong>{order.status}</strong>
               </p>
 
-              {availableStatuses.length > 0 ? (
+              {order.team_confirmation_status !== "CONFIRMED" ? (
+                <Empty>Confirm delivery in the Delivery Review panel before progressing this order's status.</Empty>
+              ) : availableStatuses.length > 0 ? (
                 <>
                   <div className="form-group">
                     <label htmlFor="status-select">Update Status</label>
@@ -337,6 +657,67 @@ export default function AdminOrderDetail() {
           }}
           onConfirm={handleCancel}
         />
+      )}
+
+      {showRejectModal && (
+        <div className="modal-overlay" onClick={() => !rejectingDelivery && setShowRejectModal(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            {!rejectingDelivery && (
+              <button type="button" className="modal-close" aria-label="Close" onClick={() => setShowRejectModal(false)}>
+                &times;
+              </button>
+            )}
+            <h3 style={{ marginTop: 0 }}>Reject Delivery for Order #{order?.id}?</h3>
+            <p style={{ color: "var(--color-text-muted)" }}>
+              The customer will see a generic "delivery unavailable" message -- this internal reason is never shown
+              to them.
+            </p>
+            <div className="form-group">
+              <label htmlFor="reject-reason">Internal Reason</label>
+              <select
+                id="reject-reason"
+                className="form-control"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+              >
+                {REJECTION_REASONS.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+            {rejectReason === "Other" && (
+              <div className="form-group">
+                <label htmlFor="reject-detail">Please specify</label>
+                <input
+                  id="reject-detail"
+                  className="form-control"
+                  value={rejectDetail}
+                  onChange={(e) => setRejectDetail(e.target.value)}
+                />
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+              <button
+                type="button"
+                className="btn btn-outline dark"
+                style={{ flex: 1 }}
+                disabled={rejectingDelivery}
+                onClick={() => setShowRejectModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                style={{ flex: 1 }}
+                disabled={rejectingDelivery}
+                onClick={handleRejectDelivery}
+              >
+                {rejectingDelivery ? "Rejecting..." : "Confirm Reject"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
