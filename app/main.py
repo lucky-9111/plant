@@ -97,6 +97,9 @@ with engine.connect() as conn:
         conn.commit()
     conn.execute(text("UPDATE admin_users SET role = 'developer' WHERE username = 'lucky'"))
     conn.execute(text("UPDATE admin_users SET role = 'developer' WHERE username = 'admin'"))
+    # 'lucky' is the site owner -- always ensure they hold the accounting
+    # Owner role too, so they can never get locked out of Accounting Roles.
+    conn.execute(text("UPDATE admin_users SET accounting_role = 'Owner' WHERE username = 'lucky'"))
     conn.commit()
 
     # Developer Dashboard RBAC: is_active defaults to 1, so every pre-existing
