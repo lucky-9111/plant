@@ -6,8 +6,58 @@ import urllib.request
 from datetime import datetime
 from email.mime.text import MIMEText
 
+from app.communications.service import queue_event as queue_whatsapp_event
 from app.monitoring.recorder import record_error
 from app.settings_helper import get_settings
+
+# Order-status -> centralized WhatsApp event name. Orders NEVER pick a
+# template name themselves (that's resolved centrally by
+# WhatsAppEventTemplateMap, see app/communications/service.py); this dict
+# only decides which EVENT a status transition represents. Any status not
+# listed here (Processing, Packed, Refund Initiated/Completed, Returned)
+# falls back to a generic `ORDER_<STATUS>` event -- still centrally
+# resolved, just without a specific named event of its own yet.
+STATUS_TO_EVENT = {
+    "Confirmed": "ORDER_ACCEPTED",
+    "Shipped": "ORDER_DISPATCHED",
+    "Out For Delivery": "OUT_FOR_DELIVERY",
+    "Delivered": "ORDER_DELIVERED",
+    "Cancelled": "ORDER_CANCELLED",
+}
+
+
+def _business_name() -> str:
+    from app.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        return get_settings(db).get("business_name", "Aaiji Nursery")
+    finally:
+        db.close()
+
+
+def _order_contact(order):
+    """(mobile, customer_name) for whichever contact info the order has --
+    same fallback the existing email/CallMeBot code already uses."""
+    mobile = (order.customer.mobile if order.customer else "") or order.delivery_mobile
+    name = (order.customer.name if order.customer else "") or order.delivery_name or "Customer"
+    return mobile, name
+
+
+def _queue_order_event(order, event_type: str, template_params: list) -> None:
+    """The ONE place Orders talks to WhatsApp -- everything routes through
+    the centralized WhatsAppService (queue_event), which resolves the
+    template centrally and never lets Orders guess/hardcode one. A queueing
+    failure here can never break order processing: queue_event() already
+    swallows every exception itself."""
+    mobile, name = _order_contact(order)
+    if not mobile:
+        return
+    queue_whatsapp_event(
+        event_type=event_type, mobile=mobile, customer_name=name,
+        template_params=template_params,
+        source_module="orders", source_id=order.id, customer_id=order.customer_id,
+    )
 
 
 class _IPv4SMTP(smtplib.SMTP):
@@ -73,6 +123,14 @@ def notify_order_status(order, old_status: str | None, new_status: str) -> None:
     send_email(customer_email, f"Order #{order.id} update - {new_status}", message)
     send_whatsapp_admin_alert(f"Order #{order.id}: {old_status or 'New'} -> {new_status}")
 
+    # Centralized customer-facing WhatsApp -- STATUS_TO_EVENT gives the
+    # known statuses their proper named event; anything else falls back to
+    # a generic ORDER_<STATUS> event. The actual template is resolved
+    # centrally (never here) -- an event with no active/approved template
+    # simply gets logged as such, it never raises.
+    event_type = STATUS_TO_EVENT.get(new_status, f"ORDER_{new_status.upper().replace(' ', '_')}")
+    _queue_order_event(order, event_type, [_order_contact(order)[1], f"ORD-{order.id}", f"Rs.{order.total_amount}"])
+
 
 # Feature 2 (delivery feasibility + team confirmation) -- dedicated
 # messages matching the exact customer-facing copy the business wants at
@@ -88,6 +146,7 @@ def notify_order_awaiting_confirmation(order) -> None:
     customer_email = order.customer.email if order.customer else None
     send_email(customer_email, f"Order #{order.id} Request Received", message)
     send_whatsapp_admin_alert(f"New order request #{order.id} awaiting delivery confirmation.")
+    _queue_order_event(order, "ORDER_CREATED", [_order_contact(order)[1], f"ORD-{order.id}", f"Rs.{order.subtotal}"])
 
 
 def notify_delivery_confirmed(order) -> None:
@@ -98,6 +157,7 @@ def notify_delivery_confirmed(order) -> None:
     )
     customer_email = order.customer.email if order.customer else None
     send_email(customer_email, f"Order #{order.id} Confirmed", message)
+    _queue_order_event(order, "DELIVERY_FEASIBILITY_CONFIRMED", [_order_contact(order)[1], f"ORD-{order.id}"])
 
 
 def notify_delivery_unavailable(order) -> None:
@@ -107,6 +167,7 @@ def notify_delivery_unavailable(order) -> None:
     )
     customer_email = order.customer.email if order.customer else None
     send_email(customer_email, f"Order #{order.id} - Delivery Unavailable", message)
+    _queue_order_event(order, "DELIVERY_UNAVAILABLE", [_order_contact(order)[1], f"ORD-{order.id}"])
 
 
 def _format_order_items(order) -> str:
@@ -114,6 +175,13 @@ def _format_order_items(order) -> str:
         f"  - {item.plant_name} x{item.quantity} - Rs.{item.line_total}" for item in order.items
     ]
     return "\n".join(lines) if lines else "  (no items)"
+
+
+def notify_payment_received(order) -> None:
+    """Dedicated PAYMENT_RECEIVED WhatsApp event (section 10/11) -- distinct
+    from the generic order-status-change message, since a payment can be
+    verified without the status label itself saying anything about money."""
+    _queue_order_event(order, "PAYMENT_RECEIVED", [_order_contact(order)[1], f"Rs.{order.total_amount}", f"ORD-{order.id}"])
 
 
 def notify_order_cancelled(db, order, old_status: str | None, cancelled_by: str, reason: str) -> None:
@@ -155,3 +223,4 @@ def notify_order_cancelled(db, order, old_status: str | None, cancelled_by: str,
     send_email(admin_email, f"Order Cancelled - #{order.id}", admin_body)
 
     send_whatsapp_admin_alert(f"Order #{order.id} CANCELLED by {cancelled_by}. Reason: {reason_text}")
+    _queue_order_event(order, "ORDER_CANCELLED", [customer_name, f"ORD-{order.id}"])

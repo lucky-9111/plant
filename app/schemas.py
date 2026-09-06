@@ -1017,3 +1017,46 @@ class SalesTrendsOut(BaseModel):
     highest_spending_customer: Optional[TrendLeaderOut] = None
     most_frequent_customer: Optional[TrendLeaderOut] = None
     has_data: bool = False
+
+
+# ---------- Stock Chart (Phase A) ----------
+# Deliberately separate from the analytics schemas above -- its own page,
+# own endpoint, own data shape (OHLCV), even though it reads the same
+# underlying sales data.
+
+class StockChartPointOut(BaseModel):
+    timestamp: str  # bucket key: "raw" = ISO datetime, else "YYYY-MM-DD"
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: int
+
+
+class StockChartOut(BaseModel):
+    interval: str  # raw | daily | weekly | monthly
+    points: List[StockChartPointOut] = []
+    has_data: bool = False
+    total_sales: float = 0
+    today_sales: float = 0
+    change_amount: float = 0
+    change_pct: float = 0
+    orders_count: int = 0
+    units_count: int = 0
+    average_order_value: float = 0
+
+
+class StockChartCategoryOut(BaseModel):
+    id: int
+    name: str
+
+
+class StockChartPlantOut(BaseModel):
+    id: int
+    name: str
+    category_id: int
+
+
+class StockChartFiltersOut(BaseModel):
+    categories: List[StockChartCategoryOut] = []
+    plants: List[StockChartPlantOut] = []

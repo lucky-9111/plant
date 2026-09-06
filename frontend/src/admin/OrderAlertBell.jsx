@@ -49,7 +49,7 @@ export default function OrderAlertBell() {
       {open && (
         <div
           style={{
-            position: "absolute", right: 0, top: "calc(100% + 8px)", width: 340, maxHeight: 420, overflowY: "auto",
+            position: "absolute", right: 0, top: "calc(100% + 8px)", width: 340, maxWidth: "calc(100vw - 32px)", maxHeight: 420, overflowY: "auto",
             background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 10,
             boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 50, padding: 12,
           }}

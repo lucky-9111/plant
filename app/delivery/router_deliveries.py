@@ -17,6 +17,7 @@ from app.delivery.schemas import (
     DeliveryOut,
     DeliveryStatusIn,
 )
+from app.delivery.notifications import queue_delivery_event
 from app.deps import get_current_admin
 
 router = APIRouter(prefix="/deliveries", tags=["delivery-deliveries"])
@@ -204,7 +205,9 @@ def create_delivery(
             ))
 
     db.commit()
-    return _with_total(_get_or_404(db, delivery.id))
+    result = _get_or_404(db, delivery.id)
+    queue_delivery_event(result)
+    return _with_total(result)
 
 
 @router.put("/{item_id}/assign", response_model=DeliveryOut)
@@ -229,7 +232,9 @@ def assign_delivery(
     if delivery.driver_id and delivery.vehicle_id and delivery.status == "Ready":
         delivery.status = "Assigned"
     db.commit()
-    return _with_total(_get_or_404(db, item_id))
+    result = _get_or_404(db, item_id)
+    queue_delivery_event(result)
+    return _with_total(result)
 
 
 @router.put("/{item_id}/status", response_model=DeliveryOut)
@@ -249,7 +254,9 @@ def update_delivery_status(
         raise HTTPException(status_code=400, detail=f"This delivery is already {delivery.status} and can't be changed")
     delivery.status = payload.status
     db.commit()
-    return _with_total(_get_or_404(db, item_id))
+    result = _get_or_404(db, item_id)
+    queue_delivery_event(result)
+    return _with_total(result)
 
 
 @router.post("/{item_id}/complete", response_model=DeliveryOut)
@@ -281,4 +288,6 @@ def complete_delivery(
     delivery.proof_photo_url = payload.proof_photo_url
     delivery.proof_signature_note = payload.proof_signature_note
     db.commit()
-    return _with_total(_get_or_404(db, item_id))
+    result = _get_or_404(db, item_id)
+    queue_delivery_event(result)
+    return _with_total(result)

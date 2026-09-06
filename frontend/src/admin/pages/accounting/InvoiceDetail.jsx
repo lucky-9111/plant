@@ -4,6 +4,7 @@ import { api } from "../../../api";
 import { Loading } from "../../../components/Loading";
 import { invoiceBadgeClass, salesOrderBadgeClass, sourceBadgeClass } from "../../accounting/accountingStatus";
 import AuditTrail from "../../accounting/AuditTrail";
+import WhatsAppActivity from "../../communications/WhatsAppActivity";
 import { printWholePage } from "../../analytics/exportUtils";
 
 function todayDateInput() {
@@ -181,6 +182,7 @@ export default function InvoiceDetail() {
           </div>
 
           <AuditTrail tableName="accounting_invoices" recordId={invoice.id} />
+          <WhatsAppActivity sourceModule="accounting" sourceId={`INV-${invoice.id}`} />
         </div>
 
         <div>

@@ -5,6 +5,7 @@ import { Loading, Empty } from "../../components/Loading";
 import OrderTracker from "../../components/OrderTracker";
 import CancelOrderModal from "../../components/CancelOrderModal";
 import { useOrderAlerts } from "../OrderAlertContext";
+import WhatsAppActivity from "../communications/WhatsAppActivity";
 import {
   CANCELLABLE_STATUSES,
   TEAM_CONFIRMATION_LABELS,
@@ -658,6 +659,8 @@ export default function AdminOrderDetail() {
           onConfirm={handleCancel}
         />
       )}
+
+      {order && <WhatsAppActivity sourceModule="orders" sourceId={order.id} />}
 
       {showRejectModal && (
         <div className="modal-overlay" onClick={() => !rejectingDelivery && setShowRejectModal(false)}>

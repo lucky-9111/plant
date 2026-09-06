@@ -1,4 +1,4 @@
-import { Navigate, NavLink, Outlet } from "react-router-dom";
+import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Loading } from "../components/Loading";
 import ErrorBoundary from "../components/ErrorBoundary";
@@ -14,6 +14,7 @@ import logoImg from "../assets/logo.png";
 const NAV = [
   { to: "/admin", label: "Dashboard", end: true, module: null },
   { to: "/admin/analytics", label: "Analytics", module: "analytics" },
+  { to: "/admin/stock-chart", label: "📈 Stock Chart", module: "analytics" },
   { to: "/admin/orders", label: "Orders", module: "orders" },
   { to: "/admin/categories", label: "Categories", module: "products" },
   { to: "/admin/plants", label: "Plants", module: "products" },
@@ -80,6 +81,15 @@ const DELIVERY_NAV = [
   { to: "/admin/delivery/fuel", label: "Fuel / Petrol", module: "delivery" },
 ];
 
+const COMMUNICATIONS_NAV = [
+  { to: "/admin/communications", label: "Dashboard", end: true, module: "communications" },
+  { to: "/admin/communications/send", label: "Send Message", module: "communications" },
+  { to: "/admin/communications/templates", label: "Templates", module: "communications" },
+  { to: "/admin/communications/event-map", label: "Event Mapping", module: "communications" },
+  { to: "/admin/communications/history", label: "Message History", module: "communications" },
+  { to: "/admin/communications/settings", label: "Settings", module: "communications" },
+];
+
 function NavGroup({ heading, items, hasPermission }) {
   const visible = items.filter((item) => item.module == null || hasPermission(item.module));
   if (visible.length === 0) return null;
@@ -97,9 +107,25 @@ function NavGroup({ heading, items, hasPermission }) {
 
 export default function AdminLayout() {
   const { username, role, hasPermission, logout } = useAuth();
+  const location = useLocation();
 
   if (username === undefined) return <Loading />;
   if (username === null) return <Navigate to="/login" replace />;
+
+  // Stock Chart is a standalone full-screen charting terminal, not a normal
+  // admin dashboard page -- it deliberately skips the sidebar/topbar chrome
+  // entirely (section 3/46 of its own spec) while staying inside the same
+  // auth check, OrderAlertProvider, and fault-isolating ErrorBoundary as
+  // every other admin page.
+  if (location.pathname.startsWith("/admin/stock-chart")) {
+    return (
+      <OrderAlertProvider>
+        <ErrorBoundary moduleName="Stock Chart">
+          <Outlet />
+        </ErrorBoundary>
+      </OrderAlertProvider>
+    );
+  }
 
   return (
     <OrderAlertProvider>
@@ -116,6 +142,7 @@ export default function AdminLayout() {
           <NavGroup heading="Accounting" items={ACCOUNTING_NAV} hasPermission={hasPermission} />
           <NavGroup heading="Employees & Labour" items={WORKFORCE_NAV} hasPermission={hasPermission} />
           <NavGroup heading="Delivery Management" items={DELIVERY_NAV} hasPermission={hasPermission} />
+          <NavGroup heading="Communications" items={COMMUNICATIONS_NAV} hasPermission={hasPermission} />
           {role === "developer" && (
             <>
               <div className="admin-nav-heading">Developer</div>

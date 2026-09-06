@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../../api";
 import { Loading, Empty } from "../../components/Loading";
 import { statusBadgeClass } from "../../utils/orderStatus";
+import WhatsAppActivity from "../communications/WhatsAppActivity";
 
 export default function CustomerDetail() {
   const { id } = useParams();
@@ -167,6 +168,8 @@ export default function CustomerDetail() {
 
           <h2 style={{ fontSize: "1.15rem" }}>Cart, Wishlist &amp; Addresses</h2>
           <Empty>Not available yet &mdash; will appear here once these features are added.</Empty>
+
+          <WhatsAppActivity customerId={customer.id} title="WhatsApp History" />
         </>
       )}
 

@@ -28,6 +28,7 @@ from app.notifications import (
     notify_order_awaiting_confirmation,
     notify_order_cancelled,
     notify_order_status,
+    notify_payment_received,
     send_email,
 )
 from app.payments import create_razorpay_order, verify_payment_signature
@@ -694,6 +695,7 @@ def verify_payment(
 
     order = get_or_404_order(db, order_id, customer_id)
     notify_order_status(order, old_status, order.status)
+    notify_payment_received(order)
     return order
 
 

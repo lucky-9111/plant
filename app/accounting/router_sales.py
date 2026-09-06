@@ -6,6 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.accounting.audit import record_change
+from app.accounting.notifications import queue_invoice_created, queue_payment_received
 from app.accounting.models import (
     Contact,
     Invoice,
@@ -194,6 +195,7 @@ def convert_to_invoice(
     )
     record_change(db, "accounting_invoices", invoice.id, "create", changed_by=admin)
     db.commit()
+    queue_invoice_created(invoice)
     return get_invoice(invoice.id, admin, db)
 
 
@@ -344,4 +346,5 @@ def create_payment_in(
             changes={"status": (old_status, invoice.status)},
         )
     db.commit()
+    queue_payment_received(payment, invoice)
     return payment

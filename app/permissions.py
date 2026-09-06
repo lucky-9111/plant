@@ -43,6 +43,7 @@ MODULES = [
     "accounting",
     "delivery",
     "labour",
+    "communications",
     "inventory",
     "reports",
     "users_roles",

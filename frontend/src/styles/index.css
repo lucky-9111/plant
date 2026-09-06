@@ -1670,7 +1670,12 @@ select:focus-visible {
   align-items: center;
   justify-content: center;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
-  z-index: 60;
+  /* Below .navbar's own z-index (50): .navbar is `position: sticky` with an
+     explicit z-index, which creates its own stacking context, so this fixed
+     button must rank below that context's root level or it paints on top of
+     everything nested inside the navbar -- including the open mobile nav
+     drawer -- even though the drawer's own z-index looks higher on paper. */
+  z-index: 40;
   font-size: 1.6rem;
 }
 

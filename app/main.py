@@ -19,6 +19,10 @@ from sqlalchemy import text
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.accounting.router import router as accounting_router
+from app.communications import models as communications_models  # noqa: F401 -- registers tables with Base.metadata
+from app.communications.router import router as communications_router
+from app.communications.seed import seed_communications_defaults
+from app.communications.worker import start_worker as start_whatsapp_worker
 from app.delivery.router import router as delivery_router
 from app.labour.router import router as labour_router
 from app.database import Base, SessionLocal, engine
@@ -31,7 +35,7 @@ from app.monitoring.module_map import infer_module
 from app.monitoring.recorder import record_error, record_request_outcome
 from app.permissions import require_permission
 from app.rbac_seed import seed_rbac_defaults
-from app.routers import api_admin, api_admin_analytics, api_admin_rbac, api_customer, api_system_health
+from app.routers import api_admin, api_admin_analytics, api_admin_rbac, api_admin_stock_chart, api_customer, api_system_health
 from app.seed_data import seed_if_empty
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -276,8 +280,34 @@ with engine.connect() as conn:
         conn.execute(text("ALTER TABLE accounting_employees ADD COLUMN bank_details TEXT DEFAULT ''"))
         conn.commit()
 
+    # Communications: WhatsApp template approval-status enum (section: WhatsApp
+    # Business Cloud API template system) supersedes the old is_active boolean
+    # -- a template can now be PENDING/REJECTED/DISABLED, not just on/off.
+    whatsapp_template_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(whatsapp_templates)"))}
+    status_col_is_new = "status" not in whatsapp_template_columns
+    if status_col_is_new:
+        conn.execute(text("ALTER TABLE whatsapp_templates ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'PENDING'"))
+        conn.commit()
+    if "last_error" not in whatsapp_template_columns:
+        conn.execute(text("ALTER TABLE whatsapp_templates ADD COLUMN last_error TEXT DEFAULT ''"))
+        conn.commit()
+    if "updated_at" not in whatsapp_template_columns:
+        conn.execute(text("ALTER TABLE whatsapp_templates ADD COLUMN updated_at DATETIME"))
+        conn.commit()
+    if status_col_is_new:
+        # One-time honest backfill against REAL evidence from live testing
+        # this session -- never assume an old is_active=1 row is actually
+        # Meta-approved (order_confirmed was marked is_active=1 for testing
+        # but Meta genuinely rejected it as "does not exist in translation").
+        # Every other pre-existing row starts at the safe default (PENDING),
+        # never auto-promoted to ACTIVE without real confirmation.
+        conn.execute(text("UPDATE whatsapp_templates SET status = 'ACTIVE' WHERE name = 'hello_world'"))
+        conn.execute(text("UPDATE whatsapp_templates SET status = 'REJECTED', last_error = 'Meta: template name does not exist in the translation (en_US)' WHERE name = 'order_confirmed'"))
+        conn.commit()
+
 seed_if_empty(SessionLocal)
 seed_rbac_defaults(SessionLocal)
+seed_communications_defaults(SessionLocal)
 
 app = FastAPI(title="Aaiji Nursery")
 
@@ -295,6 +325,7 @@ async def _bind_live_log_hub():
     import asyncio
     live_log_hub.bind_loop(asyncio.get_running_loop())
     order_alert_hub.bind_loop(asyncio.get_running_loop())
+    start_whatsapp_worker()
 
 
 @app.get("/")
@@ -396,11 +427,13 @@ app.include_router(api_admin.router)
 # wasn't given VIEW on that module. The existing accounting_role-based
 # require_roles() write-gating inside these modules is untouched.
 app.include_router(api_admin_analytics.router, dependencies=[Depends(require_permission("analytics", "VIEW"))])
+app.include_router(api_admin_stock_chart.router, dependencies=[Depends(require_permission("analytics", "VIEW"))])
 app.include_router(api_admin_rbac.router)
 app.include_router(api_system_health.router)
 app.include_router(accounting_router, dependencies=[Depends(require_permission("accounting", "VIEW"))])
 app.include_router(labour_router, dependencies=[Depends(require_permission("labour", "VIEW"))])
 app.include_router(delivery_router, dependencies=[Depends(require_permission("delivery", "VIEW"))])
+app.include_router(communications_router, dependencies=[Depends(require_permission("communications", "VIEW"))])
 app.include_router(api_customer.router)
 
 if FRONTEND_DIST.exists():

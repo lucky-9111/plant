@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../../../api";
 import { Loading } from "../../../components/Loading";
 import { deliveryStatusBadgeClass } from "../../delivery/deliveryStatus";
+import WhatsAppActivity from "../../communications/WhatsAppActivity";
 
 const STATUSES = ["Assigned", "Ready", "Out for Delivery", "Arrived"];
 const TERMINAL = ["Delivered", "Partially Delivered", "Failed", "Cancelled"];
@@ -235,6 +236,8 @@ export default function DeliveryDetail() {
           </div>
         </div>
       )}
+
+      <WhatsAppActivity sourceModule="delivery" sourceId={delivery.id} />
     </div>
   );
 }

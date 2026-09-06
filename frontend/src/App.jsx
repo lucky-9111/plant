@@ -28,6 +28,7 @@ import NotFound from "./pages/NotFound";
 import AdminLayout from "./admin/AdminLayout";
 import AdminDashboard from "./admin/pages/Dashboard";
 import AdminAnalytics from "./admin/pages/Analytics";
+import AdminStockChart from "./admin/pages/StockChart";
 import AdminPurchases from "./admin/pages/Purchases";
 import AdminOrders from "./admin/pages/Orders";
 import AdminOrderDetail from "./admin/pages/OrderDetail";
@@ -74,6 +75,12 @@ import AccountingExpenseDetail from "./admin/pages/accounting/ExpenseDetail";
 import AccountingEmployees from "./admin/pages/accounting/Employees";
 import AccountingReports from "./admin/pages/accounting/Reports";
 import AccountingRoles from "./admin/pages/accounting/Roles";
+import CommunicationsDashboard from "./admin/pages/communications/Dashboard";
+import CommunicationsSendMessage from "./admin/pages/communications/SendMessage";
+import CommunicationsTemplates from "./admin/pages/communications/Templates";
+import CommunicationsEventMap from "./admin/pages/communications/EventTemplateMap";
+import CommunicationsHistory from "./admin/pages/communications/MessageHistory";
+import CommunicationsSettings from "./admin/pages/communications/Settings";
 import LabourDashboard from "./admin/pages/labour/Dashboard";
 import LabourEmployees from "./admin/pages/labour/Employees";
 import LabourEmployeeDetail from "./admin/pages/labour/EmployeeDetail";
@@ -143,6 +150,7 @@ export default function App() {
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<AdminDashboard />} />
           <Route path="analytics" element={<AdminAnalytics />} />
+          <Route path="stock-chart" element={<AdminStockChart />} />
           <Route path="orders" element={<AdminOrders />} />
           <Route path="orders/:id" element={<AdminOrderDetail />} />
           <Route path="categories" element={<AdminCategories />} />
@@ -189,6 +197,12 @@ export default function App() {
           <Route path="accounting/employees" element={<ErrorBoundary moduleName="Accounting"><AccountingEmployees /></ErrorBoundary>} />
           <Route path="accounting/reports" element={<ErrorBoundary moduleName="Accounting"><AccountingReports /></ErrorBoundary>} />
           <Route path="accounting/roles" element={<ErrorBoundary moduleName="Accounting"><AccountingRoles /></ErrorBoundary>} />
+          <Route path="communications" element={<ErrorBoundary moduleName="Communications"><CommunicationsDashboard /></ErrorBoundary>} />
+          <Route path="communications/send" element={<ErrorBoundary moduleName="Communications"><CommunicationsSendMessage /></ErrorBoundary>} />
+          <Route path="communications/templates" element={<ErrorBoundary moduleName="Communications"><CommunicationsTemplates /></ErrorBoundary>} />
+          <Route path="communications/event-map" element={<ErrorBoundary moduleName="Communications"><CommunicationsEventMap /></ErrorBoundary>} />
+          <Route path="communications/history" element={<ErrorBoundary moduleName="Communications"><CommunicationsHistory /></ErrorBoundary>} />
+          <Route path="communications/settings" element={<ErrorBoundary moduleName="Communications"><CommunicationsSettings /></ErrorBoundary>} />
           <Route path="labour" element={<ErrorBoundary moduleName="Labour"><LabourDashboard /></ErrorBoundary>} />
           <Route path="labour/employees" element={<ErrorBoundary moduleName="Labour"><LabourEmployees /></ErrorBoundary>} />
           <Route path="labour/employees/:id" element={<ErrorBoundary moduleName="Labour"><LabourEmployeeDetail /></ErrorBoundary>} />
