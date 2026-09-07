@@ -8,6 +8,7 @@ from app.database import get_db
 from app.delivery.models import Delivery, DeliveryTrip, Driver, Vehicle
 from app.delivery.permissions import DELIVERY_WRITE_ROLES, require_roles
 from app.delivery.schemas import TripEndIn, TripOut, TripStartIn
+from app.delivery.trip_notifications import queue_trip_assigned_to_driver
 from app.deps import get_current_admin
 
 router = APIRouter(prefix="/trips", tags=["delivery-trips"])
@@ -108,6 +109,8 @@ def start_trip(
     vehicle.status = "On Trip"
     db.commit()
     db.refresh(trip)
+    delivery_count = db.query(Delivery).filter(Delivery.trip_id == trip.id).count()
+    queue_trip_assigned_to_driver(trip, delivery_count)
     return _with_count(db, trip)
 
 

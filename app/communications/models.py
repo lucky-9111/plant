@@ -28,12 +28,16 @@ class WhatsAppMessage(Base):
     event_type = Column(String(60), nullable=False, index=True)
     source_module = Column(String(30), nullable=False, index=True)  # orders/accounting/delivery/website/manual/campaign
     source_id = Column(String(60), nullable=False, index=True)
-    customer_id = Column(Integer, nullable=True, index=True)
+    recipient_type = Column(String(10), nullable=False, default="CUSTOMER", index=True)  # CUSTOMER|DRIVER
+    customer_id = Column(Integer, nullable=True, index=True)  # set only when recipient_type=CUSTOMER
+    recipient_id = Column(Integer, nullable=True, index=True)  # driver.id when recipient_type=DRIVER (customer_id kept for CUSTOMER, for backward compat with existing profile-panel queries)
     customer_name = Column(String(150), default="")
     mobile = Column(String(20), nullable=False)
     template_name = Column(String(80), nullable=False)
     template_params = Column(Text, default="[]")  # JSON list, resolved values (not raw {{placeholders}})
-    message_type = Column(String(20), default="template")
+    message_type = Column(String(20), default="template")  # template|document
+    document_name = Column(String(200), default="")
+    media_id = Column(String(120), default="")  # Meta media ID once a document is uploaded
     status = Column(String(20), nullable=False, default="QUEUED", index=True)
     provider = Column(String(20), default="aisensy")
     provider_message_id = Column(String(120), default="")

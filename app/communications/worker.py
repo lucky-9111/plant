@@ -41,6 +41,66 @@ def enqueue_message(message_id: int) -> None:
     _job_queue.put(message_id)
 
 
+def _send_document(msg: WhatsAppMessage, db, provider_name: str, masked: str) -> None:
+    """Uploads + sends a PDF document message (Invoice/Bill). Runs the same
+    retry/backoff and error-capture logic as a template send, just via
+    `send_document_message()` instead."""
+    import base64
+
+    try:
+        metadata = json.loads(msg.metadata_json) if msg.metadata_json else {}
+    except (ValueError, TypeError):
+        metadata = {}
+    b64 = metadata.get("document_base64", "")
+    caption = metadata.get("caption", "")
+    if not b64:
+        msg.status = "FAILED"
+        msg.error_code = "MISSING_DOCUMENT"
+        msg.error_message = "No document bytes were queued for this message"
+        msg.failed_at = datetime.utcnow()
+        logger.info("WhatsApp document message_id=%s missing document bytes, marking FAILED", msg.id)
+        return
+
+    try:
+        pdf_bytes = base64.b64decode(b64)
+    except Exception:
+        msg.status = "FAILED"
+        msg.error_code = "MISSING_DOCUMENT"
+        msg.error_message = "Document bytes were corrupted"
+        msg.failed_at = datetime.utcnow()
+        return
+
+    logger.info("Sending document to %s message_id=%s filename=%s mobile=%s", provider_name, msg.id, msg.document_name, masked)
+    provider = get_provider()
+    result = provider.send_document_message(msg.mobile, pdf_bytes, msg.document_name or "document.pdf", caption)
+
+    if result.ok:
+        msg.status = "SENT"
+        msg.provider_message_id = result.provider_message_id
+        msg.sent_at = datetime.utcnow()
+        msg.error_code = ""
+        msg.error_message = ""
+        logger.info("%s accepted document message_id=%s provider_message_id=%s delivery_status=SENT", provider_name, msg.id, result.provider_message_id)
+        return
+
+    msg.error_code = result.error_code
+    msg.error_message = (result.error_message or "")[:500]
+    if result.retryable and msg.retry_count < MAX_RETRY_DEFAULT:
+        msg.retry_count += 1
+        msg.status = "QUEUED"
+        delay = BACKOFF_BASE_SECONDS * (2 ** (msg.retry_count - 1))
+        logger.info("WhatsApp document send failed message_id=%s meta_error_code=%s -- retry %s/%s in %ss", msg.id, result.error_code, msg.retry_count, MAX_RETRY_DEFAULT, delay)
+        threading.Timer(delay, enqueue_message, args=(msg.id,)).start()
+    else:
+        msg.status = "FAILED"
+        msg.failed_at = datetime.utcnow()
+        logger.info("WhatsApp document send permanently failed message_id=%s meta_error_code=%s meta_error_message=%s", msg.id, result.error_code, result.error_message)
+        record_error(
+            "Communications", "WhatsApp", "send_document_message", f"external:{provider_name}", "EXTERNAL", 502,
+            None, None, error_code=result.error_code, message=result.error_message,
+        )
+
+
 def _process_one(message_id: int) -> None:
     db = SessionLocal()
     try:
@@ -53,9 +113,14 @@ def _process_one(message_id: int) -> None:
         masked = _mask_mobile(msg.mobile)
         provider_name = get_provider_name()
         logger.info(
-            "Processing WhatsApp message message_id=%s event=%s source=%s/%s customer_id=%s mobile=%s template=%s provider=%s",
-            msg.id, msg.event_type, msg.source_module, msg.source_id, msg.customer_id, masked, msg.template_name, provider_name,
+            "Processing WhatsApp message message_id=%s event=%s source=%s/%s recipient_type=%s customer_id=%s mobile=%s template=%s provider=%s",
+            msg.id, msg.event_type, msg.source_module, msg.source_id, msg.recipient_type, msg.customer_id, masked, msg.template_name, provider_name,
         )
+
+        if msg.message_type == "document":
+            _send_document(msg, db, provider_name, masked)
+            db.commit()
+            return
 
         try:
             params = json.loads(msg.template_params) if msg.template_params else []
@@ -68,9 +133,10 @@ def _process_one(message_id: int) -> None:
         except (ValueError, TypeError):
             variable_names = None
 
-        logger.info("Sending request to %s message_id=%s template=%s mobile=%s", provider_name, msg.id, msg.template_name, masked)
+        language_code = template_row.language if template_row and template_row.language else None
+        logger.info("Sending request to %s message_id=%s template=%s language=%s mobile=%s", provider_name, msg.id, msg.template_name, language_code, masked)
         provider = get_provider()
-        result = provider.send_template_message(msg.mobile, msg.template_name, params, variable_names=variable_names)
+        result = provider.send_template_message(msg.mobile, msg.template_name, params, variable_names=variable_names, language_code=language_code)
 
         if result.ok:
             msg.status = "SENT"

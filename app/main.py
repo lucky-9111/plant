@@ -35,7 +35,7 @@ from app.monitoring.module_map import infer_module
 from app.monitoring.recorder import record_error, record_request_outcome
 from app.permissions import require_permission
 from app.rbac_seed import seed_rbac_defaults
-from app.routers import api_admin, api_admin_analytics, api_admin_rbac, api_admin_stock_chart, api_customer, api_system_health
+from app.routers import api_admin, api_admin_analytics, api_admin_rbac, api_customer, api_system_health
 from app.seed_data import seed_if_empty
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -308,6 +308,24 @@ with engine.connect() as conn:
         conn.execute(text("UPDATE whatsapp_templates SET status = 'REJECTED', last_error = 'Meta: template name does not exist in the translation (en_US)' WHERE name = 'order_confirmed'"))
         conn.commit()
 
+    # Communications: DRIVER recipient support + document (PDF) messages --
+    # additive columns, existing CUSTOMER-only messages are completely
+    # unaffected (recipient_type defaults to 'CUSTOMER', message_type stays
+    # 'template' for every existing row).
+    whatsapp_message_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(whatsapp_messages)"))}
+    if "recipient_type" not in whatsapp_message_columns:
+        conn.execute(text("ALTER TABLE whatsapp_messages ADD COLUMN recipient_type VARCHAR(10) NOT NULL DEFAULT 'CUSTOMER'"))
+        conn.commit()
+    if "recipient_id" not in whatsapp_message_columns:
+        conn.execute(text("ALTER TABLE whatsapp_messages ADD COLUMN recipient_id INTEGER"))
+        conn.commit()
+    if "document_name" not in whatsapp_message_columns:
+        conn.execute(text("ALTER TABLE whatsapp_messages ADD COLUMN document_name VARCHAR(200) DEFAULT ''"))
+        conn.commit()
+    if "media_id" not in whatsapp_message_columns:
+        conn.execute(text("ALTER TABLE whatsapp_messages ADD COLUMN media_id VARCHAR(120) DEFAULT ''"))
+        conn.commit()
+
 seed_if_empty(SessionLocal)
 seed_rbac_defaults(SessionLocal)
 seed_communications_defaults(SessionLocal)
@@ -430,7 +448,6 @@ app.include_router(api_admin.router)
 # wasn't given VIEW on that module. The existing accounting_role-based
 # require_roles() write-gating inside these modules is untouched.
 app.include_router(api_admin_analytics.router, dependencies=[Depends(require_permission("analytics", "VIEW"))])
-app.include_router(api_admin_stock_chart.router, dependencies=[Depends(require_permission("analytics", "VIEW"))])
 app.include_router(api_admin_rbac.router)
 app.include_router(api_system_health.router)
 app.include_router(accounting_router, dependencies=[Depends(require_permission("accounting", "VIEW"))])

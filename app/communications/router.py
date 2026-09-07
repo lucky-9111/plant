@@ -33,8 +33,10 @@ def _message_to_out(msg: WhatsAppMessage) -> MessageOut:
     # __dict__ silently drops expired attributes right after a commit.
     return MessageOut(
         id=msg.id, event_type=msg.event_type, source_module=msg.source_module, source_id=msg.source_id,
-        customer_id=msg.customer_id, customer_name=msg.customer_name, mobile=msg.mobile,
+        recipient_type=msg.recipient_type, customer_id=msg.customer_id, recipient_id=msg.recipient_id,
+        customer_name=msg.customer_name, mobile=msg.mobile,
         template_name=msg.template_name, template_params=_parse_json_list(msg.template_params),
+        message_type=msg.message_type, document_name=msg.document_name or "",
         status=msg.status, provider=msg.provider, provider_message_id=msg.provider_message_id,
         error_code=msg.error_code, error_message=msg.error_message, retry_count=msg.retry_count,
         created_at=msg.created_at, sent_at=msg.sent_at, delivered_at=msg.delivered_at,
@@ -109,6 +111,8 @@ def list_messages(
     source_module: Optional[str] = None,
     source_id: Optional[str] = None,
     customer_id: Optional[int] = None,
+    recipient_type: Optional[str] = None,
+    recipient_id: Optional[int] = None,
     mobile: Optional[str] = None,
     q: Optional[str] = Query(None, description="search customer name / mobile / source id"),
     limit: int = Query(50, le=200),
@@ -126,6 +130,10 @@ def list_messages(
         query = query.filter(WhatsAppMessage.source_id == source_id)
     if customer_id:
         query = query.filter(WhatsAppMessage.customer_id == customer_id)
+    if recipient_type:
+        query = query.filter(WhatsAppMessage.recipient_type == recipient_type)
+    if recipient_id:
+        query = query.filter(WhatsAppMessage.recipient_id == recipient_id)
     if mobile:
         query = query.filter(WhatsAppMessage.mobile.contains(mobile))
     if q:

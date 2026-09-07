@@ -28,18 +28,30 @@ class ProviderResult:
 class MessageProvider(ABC):
     @abstractmethod
     def send_template_message(
-        self, mobile: str, campaign_name: str, template_params: list, variable_names: Optional[list] = None,
+        self, mobile: str, campaign_name: str, template_params: list,
+        variable_names: Optional[list] = None, language_code: Optional[str] = None,
     ) -> ProviderResult:
         """variable_names (optional): the named placeholder for each
         template_params value, in the same order (e.g. ["customer_name",
         "order_number"]) -- Meta's newer templates require NAMED body
         parameters ({{customer_name}}, not {{1}}), so a Cloud API provider
-        needs this to build the correct payload. Providers that only ever
+        needs this to build the correct payload. language_code (optional):
+        the exact language the template was approved under on Meta (e.g.
+        "en" vs "en_US" are DIFFERENT templates to Meta -- sending the
+        wrong one fails with "template does not exist" even if the template
+        is genuinely approved). Providers that only ever
         use positional params (AiSensy) simply ignore it."""
         ...
 
     @abstractmethod
     def test_connection(self) -> ProviderResult: ...
+
+    def send_document_message(self, mobile: str, file_bytes: bytes, filename: str, caption: str = "") -> ProviderResult:
+        """Send a PDF (or other document) as a WhatsApp document message.
+        Default implementation: not supported -- a provider that can't do
+        this (e.g. AiSensy, whose document-message API isn't verified/wired
+        up yet) fails cleanly rather than silently dropping the document."""
+        return ProviderResult(False, error_code="NOT_SUPPORTED", error_message="This provider does not support document messages")
 
 
 class AiSensyProvider(MessageProvider):
@@ -60,7 +72,7 @@ class AiSensyProvider(MessageProvider):
         )
         return urllib.request.urlopen(req, timeout=self.timeout)
 
-    def send_template_message(self, mobile: str, campaign_name: str, template_params: list, variable_names: Optional[list] = None) -> ProviderResult:
+    def send_template_message(self, mobile: str, campaign_name: str, template_params: list, variable_names: Optional[list] = None, language_code: Optional[str] = None) -> ProviderResult:
         if not self._configured():
             return ProviderResult(False, error_code="CONFIGURATION_ERROR", error_message="AISENSY_API_KEY/AISENSY_API_URL not configured")
 
@@ -187,7 +199,7 @@ class WhatsAppCloudAPIProvider(MessageProvider):
             pass
         return "", raw_body.decode(errors="ignore")[:400]
 
-    def send_template_message(self, mobile: str, campaign_name: str, template_params: list, variable_names: Optional[list] = None) -> ProviderResult:
+    def send_template_message(self, mobile: str, campaign_name: str, template_params: list, variable_names: Optional[list] = None, language_code: Optional[str] = None) -> ProviderResult:
         if not self._configured():
             return ProviderResult(False, error_code="CONFIGURATION_ERROR", error_message="WHATSAPP_CLOUD_API_TOKEN/WHATSAPP_CLOUD_API_PHONE_ID not configured")
 
@@ -210,7 +222,7 @@ class WhatsAppCloudAPIProvider(MessageProvider):
             "messaging_product": "whatsapp",
             "to": mobile.lstrip("+"),
             "type": "template",
-            "template": {"name": campaign_name, "language": {"code": "en_US"}, "components": components},
+            "template": {"name": campaign_name, "language": {"code": language_code or "en_US"}, "components": components},
         }
         try:
             with self._post(payload) as resp:
@@ -262,6 +274,76 @@ class WhatsAppCloudAPIProvider(MessageProvider):
             return ProviderResult(False, error_code=code, error_message=reason)
         except Exception as exc:  # noqa: BLE001
             return ProviderResult(False, error_code="PROVIDER_ERROR", error_message=str(exc))
+
+    def _upload_media(self, file_bytes: bytes, filename: str, mime_type: str) -> tuple[str, ProviderResult]:
+        """Step 1 of sending a document: upload the file bytes to Meta's
+        media endpoint (multipart/form-data, built by hand since this
+        project has no `requests` dependency) and get back a media id."""
+        boundary = "----WhatsAppMediaBoundary7d91f4"
+        parts = []
+        parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"messaging_product\"\r\n\r\nwhatsapp\r\n")
+        parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"type\"\r\n\r\n{mime_type}\r\n")
+        parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\nContent-Type: {mime_type}\r\n\r\n")
+        body = "".join(parts).encode() + file_bytes + f"\r\n--{boundary}--\r\n".encode()
+
+        try:
+            req = urllib.request.Request(
+                f"https://graph.facebook.com/{self.api_version}/{self.phone_id}/media",
+                data=body,
+                headers={
+                    "Authorization": f"Bearer {self.token}",
+                    "Content-Type": f"multipart/form-data; boundary={boundary}",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                data = json.loads(resp.read().decode())
+            media_id = data.get("id", "")
+            if not media_id:
+                return "", ProviderResult(False, error_code="MEDIA_UPLOAD_ERROR", error_message="Meta did not return a media id")
+            return media_id, ProviderResult(True)
+        except urllib.error.HTTPError as exc:
+            code, message = self._parse_meta_error(exc.read())
+            return "", ProviderResult(False, error_code=code or f"HTTP_{exc.code}", error_message=message, retryable=exc.code >= 500)
+        except urllib.error.URLError as exc:
+            reason = str(exc.reason)
+            code = "TIMEOUT" if "timed out" in reason.lower() else "PROVIDER_ERROR"
+            return "", ProviderResult(False, error_code=code, error_message=reason, retryable=True)
+        except Exception as exc:  # noqa: BLE001
+            return "", ProviderResult(False, error_code="PROVIDER_ERROR", error_message=str(exc), retryable=True)
+
+    def send_document_message(self, mobile: str, file_bytes: bytes, filename: str, caption: str = "") -> ProviderResult:
+        if not self._configured():
+            return ProviderResult(False, error_code="CONFIGURATION_ERROR", error_message="WHATSAPP_CLOUD_API_TOKEN/WHATSAPP_CLOUD_API_PHONE_ID not configured")
+
+        media_id, upload_result = self._upload_media(file_bytes, filename, "application/pdf")
+        if not upload_result.ok:
+            return upload_result
+
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": mobile.lstrip("+"),
+            "type": "document",
+            "document": {"id": media_id, "filename": filename, "caption": caption} if caption else {"id": media_id, "filename": filename},
+        }
+        try:
+            with self._post(payload) as resp:
+                body = resp.read().decode()
+                status = resp.status
+            if status in (200, 201):
+                data = json.loads(body) if body else {}
+                msg_id = str((data.get("messages") or [{}])[0].get("id", ""))
+                return ProviderResult(True, provider_message_id=msg_id)
+            return ProviderResult(False, error_code=f"HTTP_{status}", error_message="Unexpected Cloud API response", retryable=status >= 500)
+        except urllib.error.HTTPError as exc:
+            code, message = self._parse_meta_error(exc.read())
+            return ProviderResult(False, error_code=code or f"HTTP_{exc.code}", error_message=message, retryable=exc.code >= 500)
+        except urllib.error.URLError as exc:
+            reason = str(exc.reason)
+            code = "TIMEOUT" if "timed out" in reason.lower() else "PROVIDER_ERROR"
+            return ProviderResult(False, error_code=code, error_message=reason, retryable=True)
+        except Exception as exc:  # noqa: BLE001
+            return ProviderResult(False, error_code="PROVIDER_ERROR", error_message=str(exc), retryable=True)
 
 
 _provider_instance: Optional[MessageProvider] = None

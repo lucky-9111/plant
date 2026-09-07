@@ -30,6 +30,9 @@ DEFAULT_EVENT_SETTINGS = [
     ("WELCOME_CUSTOMER", "Welcome New Customer"),
     ("DELIVERY_FEASIBILITY_CONFIRMED", "Delivery Feasibility Confirmed"),
     ("DELIVERY_UNAVAILABLE", "Delivery Unavailable"),
+    ("SALES_ORDER_CREATED", "Sales Order Created"),
+    ("DELIVERY_ASSIGNED_TO_DRIVER", "Delivery Assigned to Driver"),
+    ("TRIP_ASSIGNED_TO_DRIVER", "Trip Assigned to Driver"),
 ]
 
 # THE central event -> template map (never hardcoded per module). Every
@@ -58,6 +61,9 @@ DEFAULT_EVENT_TEMPLATE_MAP = [
     ("DELIVERY_CANCELLED", "delivery_cancelled"),
     ("ENQUIRY_RECEIVED", "enquiry_received"),
     ("WELCOME_CUSTOMER", "welcome_customer"),
+    ("SALES_ORDER_CREATED", "sales_order_created"),
+    ("DELIVERY_ASSIGNED_TO_DRIVER", "delivery_assigned_to_driver"),
+    ("TRIP_ASSIGNED_TO_DRIVER", "trip_assigned_to_driver"),
 ]
 
 # The 7 core templates use the exact copy specified in the WhatsApp
@@ -174,6 +180,21 @@ DEFAULT_TEMPLATES = [
         "name": "delivery_cancelled", "category": "delivery",
         "preview": "Hello {{customer_name}}, delivery {{delivery_number}} has been cancelled.",
         "variables": ["customer_name", "delivery_number"],
+    },
+    {
+        "name": "sales_order_created", "category": "orders",
+        "preview": "Hello {{customer_name}}, your sales order #{{order_number}} has been created.\nOrder amount: Rs.{{amount}}.",
+        "variables": ["customer_name", "order_number", "amount"],
+    },
+    {
+        "name": "delivery_assigned_to_driver", "category": "driver",
+        "preview": "Hello {{driver_name}}, you have been assigned a delivery.\nOrder: #{{delivery_number}}\nCustomer: {{customer_name}}\nAddress: {{address}}\nScheduled Date: {{scheduled_date}}\nPlease complete the delivery as scheduled.",
+        "variables": ["driver_name", "delivery_number", "customer_name", "address", "scheduled_date"],
+    },
+    {
+        "name": "trip_assigned_to_driver", "category": "driver",
+        "preview": "Hello {{driver_name}}, Trip #{{trip_number}} has been assigned to you.\nTotal Deliveries: {{delivery_count}}\nDate: {{trip_date}}\nPlease open your Delivery Dashboard for the complete route.",
+        "variables": ["driver_name", "trip_number", "delivery_count", "trip_date"],
     },
 ]
 

@@ -1,4 +1,4 @@
-import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Navigate, NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Loading } from "../components/Loading";
 import ErrorBoundary from "../components/ErrorBoundary";
@@ -14,7 +14,6 @@ import logoImg from "../assets/logo.png";
 const NAV = [
   { to: "/admin", label: "Dashboard", end: true, module: null },
   { to: "/admin/analytics", label: "Analytics", module: "analytics" },
-  { to: "/admin/stock-chart", label: "📈 Stock Chart", module: "analytics" },
   { to: "/admin/orders", label: "Orders", module: "orders" },
   { to: "/admin/categories", label: "Categories", module: "products" },
   { to: "/admin/plants", label: "Plants", module: "products" },
@@ -107,25 +106,9 @@ function NavGroup({ heading, items, hasPermission }) {
 
 export default function AdminLayout() {
   const { username, role, hasPermission, logout } = useAuth();
-  const location = useLocation();
 
   if (username === undefined) return <Loading />;
   if (username === null) return <Navigate to="/login" replace />;
-
-  // Stock Chart is a standalone full-screen charting terminal, not a normal
-  // admin dashboard page -- it deliberately skips the sidebar/topbar chrome
-  // entirely (section 3/46 of its own spec) while staying inside the same
-  // auth check, OrderAlertProvider, and fault-isolating ErrorBoundary as
-  // every other admin page.
-  if (location.pathname.startsWith("/admin/stock-chart")) {
-    return (
-      <OrderAlertProvider>
-        <ErrorBoundary moduleName="Stock Chart">
-          <Outlet />
-        </ErrorBoundary>
-      </OrderAlertProvider>
-    );
-  }
 
   return (
     <OrderAlertProvider>

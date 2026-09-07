@@ -5,7 +5,7 @@ The DELIVERY_<STATUS> event name is derived from the actual status string
 branch), but the TEMPLATE for that event is resolved centrally by
 WhatsAppEventTemplateMap -- this module never picks a template name
 itself."""
-from app.communications.service import queue_event as queue_whatsapp_event
+from app.communications.service import queue_driver_event, queue_event as queue_whatsapp_event
 
 
 def _delivery_contact(delivery):
@@ -15,6 +15,7 @@ def _delivery_contact(delivery):
 
 
 def queue_delivery_event(delivery) -> None:
+    """Customer-facing delivery status update."""
     mobile, name = _delivery_contact(delivery)
     if not mobile:
         return
@@ -27,4 +28,25 @@ def queue_delivery_event(delivery) -> None:
         event_type=event_type, mobile=mobile, customer_name=name,
         template_params=params,
         source_module="delivery", source_id=delivery.id, customer_id=delivery.contact.customer_id if delivery.contact else None,
+    )
+
+
+def queue_delivery_assigned_to_driver(delivery) -> None:
+    """Driver-facing: fired the moment a delivery gets a driver assigned --
+    tells the driver just enough to know a new job exists, and to check the
+    Delivery Dashboard for full details (section 15/39's "WhatsApp tells,
+    dashboard shows everything" split). Never fails delivery assignment
+    itself if the driver has no WhatsApp number/isn't active -- queue_driver_event()
+    resolves and validates the driver internally."""
+    if not delivery.driver_id or not delivery.driver:
+        return
+    customer_name = delivery.contact.name if delivery.contact else "Customer"
+    address = delivery.delivery_address or (delivery.contact.address if delivery.contact else "") or "-"
+    queue_driver_event(
+        event_type="DELIVERY_ASSIGNED_TO_DRIVER", driver=delivery.driver,
+        template_params=[
+            delivery.driver.name, delivery.delivery_number or f"DEL-{delivery.id}",
+            customer_name, address, delivery.delivery_date.strftime("%d %b %Y"),
+        ],
+        source_module="delivery", source_id=delivery.id,
     )

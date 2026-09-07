@@ -6,7 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.accounting.audit import record_change
-from app.accounting.notifications import queue_invoice_created, queue_payment_received
+from app.accounting.notifications import queue_invoice_created, queue_payment_received, queue_sales_order_created
 from app.accounting.models import (
     Contact,
     Invoice,
@@ -123,6 +123,7 @@ def create_sales_order(
     db.refresh(order)
     record_change(db, "accounting_sales_orders", order.id, "create", changed_by=admin)
     db.commit()
+    queue_sales_order_created(order)
     return get_sales_order(order.id, admin, db)
 
 

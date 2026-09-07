@@ -17,7 +17,7 @@ from app.delivery.schemas import (
     DeliveryOut,
     DeliveryStatusIn,
 )
-from app.delivery.notifications import queue_delivery_event
+from app.delivery.notifications import queue_delivery_assigned_to_driver, queue_delivery_event
 from app.deps import get_current_admin
 
 router = APIRouter(prefix="/deliveries", tags=["delivery-deliveries"])
@@ -207,6 +207,8 @@ def create_delivery(
     db.commit()
     result = _get_or_404(db, delivery.id)
     queue_delivery_event(result)
+    if result.driver_id:
+        queue_delivery_assigned_to_driver(result)
     return _with_total(result)
 
 
@@ -234,6 +236,8 @@ def assign_delivery(
     db.commit()
     result = _get_or_404(db, item_id)
     queue_delivery_event(result)
+    if result.driver_id:
+        queue_delivery_assigned_to_driver(result)
     return _with_total(result)
 
 

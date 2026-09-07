@@ -63,6 +63,8 @@ def queue_message(
     source_module: str,
     source_id,
     customer_id: Optional[int] = None,
+    recipient_type: str = "CUSTOMER",
+    recipient_id: Optional[int] = None,
     metadata: Optional[dict] = None,
     created_by: str = "",
 ) -> QueueResult:
@@ -109,6 +111,8 @@ def queue_message(
             msg.event_type = event_type
             msg.source_module = source_module
             msg.source_id = str(source_id)
+            msg.recipient_type = recipient_type
+            msg.recipient_id = recipient_id
             msg.customer_id = customer_id
             msg.customer_name = customer_name
             msg.mobile = normalized
@@ -132,6 +136,8 @@ def queue_message(
         msg.event_type = event_type
         msg.source_module = source_module
         msg.source_id = str(source_id)
+        msg.recipient_type = recipient_type
+        msg.recipient_id = recipient_id
         msg.customer_id = customer_id
         msg.customer_name = customer_name
         msg.mobile = normalized
@@ -170,6 +176,8 @@ def queue_event(
     source_module: str,
     source_id,
     customer_id: Optional[int] = None,
+    recipient_type: str = "CUSTOMER",
+    recipient_id: Optional[int] = None,
     metadata: Optional[dict] = None,
 ) -> QueueResult:
     """THE entry point for every AUTOMATIC event (Orders/Delivery/
@@ -198,6 +206,8 @@ def queue_event(
             msg.event_type = event_type
             msg.source_module = source_module
             msg.source_id = str(source_id)
+            msg.recipient_type = recipient_type
+            msg.recipient_id = recipient_id
             msg.customer_id = customer_id
             msg.customer_name = customer_name
             msg.mobile = normalized
@@ -220,8 +230,104 @@ def queue_event(
         event_type=event_type, mobile=mobile, customer_name=customer_name,
         template_name=template_name, template_params=template_params,
         source_module=source_module, source_id=source_id,
-        customer_id=customer_id, metadata=metadata,
+        customer_id=customer_id, recipient_type=recipient_type, recipient_id=recipient_id,
+        metadata=metadata,
     )
+
+
+def queue_driver_event(
+    *,
+    event_type: str,
+    driver,
+    template_params: list,
+    source_module: str,
+    source_id,
+    metadata: Optional[dict] = None,
+) -> QueueResult:
+    """Driver-facing counterpart of queue_event() (section 25/26's
+    "resolve driver.whatsapp_number, validate active + configured" routing
+    rules). Never fails the caller's business operation: an inactive driver
+    or missing phone number just means the message never gets queued at
+    all, logged as SKIPPED -- nothing upstream (trip/delivery) is affected."""
+    if not driver or driver.status != "Active":
+        logger.info("Driver not active, skipping driver WhatsApp event=%s source=%s/%s", event_type, source_module, source_id)
+        return QueueResult(False, reason="DRIVER_NOT_ACTIVE")
+    if not driver.phone:
+        logger.info("Driver has no WhatsApp number, skipping event=%s source=%s/%s driver_id=%s", event_type, source_module, source_id, driver.id)
+        return QueueResult(False, reason="DRIVER_WHATSAPP_NUMBER_NOT_CONFIGURED")
+    return queue_event(
+        event_type=event_type, mobile=driver.phone, customer_name=driver.name,
+        template_params=template_params, source_module=source_module, source_id=source_id,
+        recipient_type="DRIVER", recipient_id=driver.id, metadata=metadata,
+    )
+
+
+def queue_document_event(
+    *,
+    event_type: str,
+    mobile: str,
+    customer_name: str,
+    source_module: str,
+    source_id,
+    pdf_bytes: bytes,
+    filename: str,
+    caption: str = "",
+    customer_id: Optional[int] = None,
+) -> QueueResult:
+    """Sends a PDF (Invoice/Bill) as a WhatsApp document -- a SEPARATE
+    queued message from the template text message (its own idempotency key,
+    suffixed ':DOC', so calling this twice for the same invoice never sends
+    the PDF twice, independent of whether the text message already went).
+    Reuses the exact same queue/worker/retry/fault-isolation machinery as
+    every other message -- the only difference is message_type='document'
+    and the PDF bytes are stashed (base64) for the worker to upload."""
+    import base64
+
+    db = SessionLocal()
+    try:
+        if not is_event_enabled(db, event_type):
+            return QueueResult(False, reason="EVENT_DISABLED")
+
+        normalized = normalize_mobile(mobile)
+        if not normalized:
+            return QueueResult(False, reason="INVALID_MOBILE")
+
+        idempotency_key = f"{event_type}:{source_id}:DOC"
+        existing = db.query(WhatsAppMessage).filter(WhatsAppMessage.idempotency_key == idempotency_key).first()
+        if existing and existing.status not in ("FAILED", "CANCELLED"):
+            return QueueResult(True, message=existing, reason="ALREADY_QUEUED")
+
+        msg = existing or WhatsAppMessage(idempotency_key=idempotency_key, created_at=datetime.utcnow())
+        msg.event_type = event_type
+        msg.source_module = source_module
+        msg.source_id = str(source_id)
+        msg.recipient_type = "CUSTOMER"
+        msg.customer_id = customer_id
+        msg.customer_name = customer_name
+        msg.mobile = normalized
+        msg.template_name = ""
+        msg.template_params = "[]"
+        msg.message_type = "document"
+        msg.document_name = filename
+        msg.status = "QUEUED"
+        msg.provider = get_provider_name()
+        msg.error_code = ""
+        msg.error_message = ""
+        msg.metadata_json = json.dumps({"document_base64": base64.b64encode(pdf_bytes).decode(), "caption": caption})
+        if not existing:
+            db.add(msg)
+        db.commit()
+        db.refresh(msg)
+        logger.info("WhatsApp document queued job_id=%s event=%s source=%s/%s filename=%s", msg.id, event_type, source_module, source_id, filename)
+        enqueue_message(msg.id)
+        return QueueResult(True, message=msg)
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        logger.exception("queue_document_event failed event=%s source=%s/%s", event_type, source_module, source_id)
+        record_error("Communications", "WhatsApp", "queue_document_event", "internal:whatsapp", "INTERNAL", 500, None, exc)
+        return QueueResult(False, reason="INTERNAL_ERROR")
+    finally:
+        db.close()
 
 
 def queue_manual_message(
@@ -290,7 +396,7 @@ def send_test_message(mobile: str, template_name: str, template_params: list) ->
             variable_names = None
 
         provider = get_provider()
-        result = provider.send_template_message(normalized, template_name, template_params, variable_names=variable_names)
+        result = provider.send_template_message(normalized, template_name, template_params, variable_names=variable_names, language_code=template.language or None)
 
         msg = WhatsAppMessage(
             idempotency_key=f"TEST_MESSAGE:{uuid.uuid4().hex}",

@@ -28,7 +28,6 @@ import NotFound from "./pages/NotFound";
 import AdminLayout from "./admin/AdminLayout";
 import AdminDashboard from "./admin/pages/Dashboard";
 import AdminAnalytics from "./admin/pages/Analytics";
-import AdminStockChart from "./admin/pages/StockChart";
 import AdminPurchases from "./admin/pages/Purchases";
 import AdminOrders from "./admin/pages/Orders";
 import AdminOrderDetail from "./admin/pages/OrderDetail";
@@ -150,7 +149,6 @@ export default function App() {
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<AdminDashboard />} />
           <Route path="analytics" element={<AdminAnalytics />} />
-          <Route path="stock-chart" element={<AdminStockChart />} />
           <Route path="orders" element={<AdminOrders />} />
           <Route path="orders/:id" element={<AdminOrderDetail />} />
           <Route path="categories" element={<AdminCategories />} />

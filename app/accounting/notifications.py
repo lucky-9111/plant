@@ -5,14 +5,30 @@ WhatsAppEventTemplateMap. Covers BOTH online and offline contacts -- an
 offline walk-in sale converted to an Invoice here gets exactly the same
 WhatsApp treatment a website order does, which the auto-sync path
 (app/accounting/sync.py) never triggers on its own.
+
+Note: "Bill" in this codebase (app.models.Purchase) is a SUPPLIER/purchase
+bill -- what the business owes a vendor -- not a customer-facing document,
+so it is deliberately never sent to a customer over WhatsApp here.
 """
-from app.communications.service import queue_event as queue_whatsapp_event
+from app.communications.service import queue_document_event, queue_event as queue_whatsapp_event
 
 
 def _contact_mobile_name(contact):
     if not contact:
         return "", "Customer"
     return contact.phone, contact.name
+
+
+def queue_sales_order_created(sales_order) -> None:
+    mobile, name = _contact_mobile_name(sales_order.contact)
+    if not mobile:
+        return
+    queue_whatsapp_event(
+        event_type="SALES_ORDER_CREATED", mobile=mobile, customer_name=name,
+        template_params=[name, sales_order.order_number, f"Rs.{sales_order.total_amount}"],
+        source_module="accounting", source_id=f"SO-{sales_order.id}",
+        customer_id=sales_order.contact.customer_id if sales_order.contact else None,
+    )
 
 
 def queue_invoice_created(invoice) -> None:
@@ -24,6 +40,38 @@ def queue_invoice_created(invoice) -> None:
         event_type="INVOICE_CREATED", mobile=mobile, customer_name=name,
         template_params=[name, invoice.invoice_number, f"Rs.{invoice.total_amount}", due],
         source_module="accounting", source_id=f"INV-{invoice.id}",
+        customer_id=invoice.contact.customer_id if invoice.contact else None,
+    )
+    _queue_invoice_pdf(invoice, mobile, name)
+
+
+def _queue_invoice_pdf(invoice, mobile: str, name: str) -> None:
+    """Sends the SAME PDF the "View PDF" admin button generates -- built
+    once via app.accounting.pdf_builder, never regenerated separately for
+    WhatsApp. A PDF-build failure here is caught and logged, never allowed
+    to break invoice creation itself (fault isolation, same guarantee as
+    every other WhatsApp call)."""
+    try:
+        from app.accounting.pdf_builder import build_invoice_pdf_bytes
+        from app.database import SessionLocal
+        from app.settings_helper import get_settings
+
+        db = SessionLocal()
+        try:
+            settings = get_settings(db)
+        finally:
+            db.close()
+        pdf_bytes = build_invoice_pdf_bytes(invoice, settings)
+    except Exception:
+        import logging
+        logging.getLogger("accounting.notifications").exception("Failed to build invoice PDF for WhatsApp, invoice_id=%s", invoice.id)
+        return
+
+    queue_document_event(
+        event_type="INVOICE_CREATED", mobile=mobile, customer_name=name,
+        source_module="accounting", source_id=f"INV-{invoice.id}",
+        pdf_bytes=pdf_bytes, filename=f"{invoice.invoice_number}.pdf",
+        caption=f"Invoice {invoice.invoice_number}",
         customer_id=invoice.contact.customer_id if invoice.contact else None,
     )
 

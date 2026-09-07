@@ -17,6 +17,7 @@ export default function MessageHistory() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const [sourceModule, setSourceModule] = useState("");
+  const [recipientType, setRecipientType] = useState("");
   const [retrying, setRetrying] = useState(null);
   const [expanded, setExpanded] = useState(null);
 
@@ -26,11 +27,12 @@ export default function MessageHistory() {
     if (q) params.set("q", q);
     if (status) params.set("status", status);
     if (sourceModule) params.set("source_module", sourceModule);
+    if (recipientType) params.set("recipient_type", recipientType);
     params.set("limit", "100");
     api.get(`/admin/communications/messages?${params.toString()}`).then(setData);
   }
 
-  useEffect(load, [q, status, sourceModule]);
+  useEffect(load, [q, status, sourceModule, recipientType]);
 
   async function handleRetry(id) {
     setRetrying(id);
@@ -60,6 +62,11 @@ export default function MessageHistory() {
           <option value="">All modules</option>
           {MODULES.map((m) => <option key={m} value={m}>{m}</option>)}
         </select>
+        <select className="form-control" style={{ maxWidth: 160 }} value={recipientType} onChange={(e) => setRecipientType(e.target.value)}>
+          <option value="">Customer + Driver</option>
+          <option value="CUSTOMER">Customer only</option>
+          <option value="DRIVER">Driver only</option>
+        </select>
       </div>
 
       {!data ? (
@@ -72,11 +79,12 @@ export default function MessageHistory() {
             <thead>
               <tr>
                 <th>Date/Time</th>
-                <th>Customer</th>
+                <th>Recipient</th>
                 <th>Mobile</th>
                 <th>Module</th>
                 <th>Event</th>
                 <th>Template</th>
+                <th>Type</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -86,11 +94,15 @@ export default function MessageHistory() {
                 <Fragment key={m.id}>
                   <tr>
                     <td>{new Date(m.created_at).toLocaleString()}</td>
-                    <td>{m.customer_name || "-"}</td>
+                    <td>
+                      {m.recipient_type === "DRIVER" ? "🚚 " : "👤 "}
+                      {m.customer_name || "-"}
+                    </td>
                     <td>{m.mobile}</td>
                     <td>{m.source_module}</td>
                     <td>{m.event_type}</td>
-                    <td>{m.template_name}</td>
+                    <td>{m.template_name || "-"}</td>
+                    <td>{m.message_type === "document" ? `📄 ${m.document_name || "PDF"}` : "Text"}</td>
                     <td><span className={`badge ${STATUS_BADGE[m.status] || "badge-muted"}`}>{m.status}</span></td>
                     <td>
                       <div className="row-actions">
@@ -107,7 +119,7 @@ export default function MessageHistory() {
                   </tr>
                   {expanded === m.id && (
                     <tr>
-                      <td colSpan={8} style={{ background: "var(--color-bg-soft, #f6f7f5)" }}>
+                      <td colSpan={9} style={{ background: "var(--color-bg-soft, #f6f7f5)" }}>
                         <div style={{ padding: 8, fontSize: "0.85rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                           <div><strong>Source ID:</strong> {m.source_id}</div>
                           <div><strong>Provider Message ID:</strong> {m.provider_message_id || "-"}</div>

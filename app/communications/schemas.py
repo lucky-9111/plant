@@ -32,11 +32,15 @@ class MessageOut(BaseModel):
     event_type: str
     source_module: str
     source_id: str
+    recipient_type: str = "CUSTOMER"
     customer_id: Optional[int]
+    recipient_id: Optional[int] = None
     customer_name: str
     mobile: str
     template_name: str
     template_params: list
+    message_type: str = "template"
+    document_name: str = ""
     status: str
     provider: str
     provider_message_id: str
