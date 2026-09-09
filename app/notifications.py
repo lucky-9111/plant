@@ -66,8 +66,14 @@ class _IPv4SMTP(smtplib.SMTP):
     the socket to resolve via IPv4 while keeping the hostname for TLS SNI."""
 
     def _get_socket(self, host, port, timeout):
-        ipv4_host = socket.gethostbyname(host)
-        return socket.create_connection((ipv4_host, port), timeout, self.source_address)
+        addrs = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+        last_exc = None
+        for _family, _type, _proto, _canonname, sockaddr in addrs:
+            try:
+                return socket.create_connection(sockaddr, timeout, self.source_address)
+            except OSError as exc:
+                last_exc = exc
+        raise last_exc
 
 
 def send_email(to_email: str, subject: str, body: str) -> None:
