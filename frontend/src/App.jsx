@@ -80,16 +80,6 @@ import CommunicationsTemplates from "./admin/pages/communications/Templates";
 import CommunicationsEventMap from "./admin/pages/communications/EventTemplateMap";
 import CommunicationsHistory from "./admin/pages/communications/MessageHistory";
 import CommunicationsSettings from "./admin/pages/communications/Settings";
-import LabourDashboard from "./admin/pages/labour/Dashboard";
-import LabourEmployees from "./admin/pages/labour/Employees";
-import LabourEmployeeDetail from "./admin/pages/labour/EmployeeDetail";
-import LabourLabour from "./admin/pages/labour/Labour";
-import LabourLabourDetail from "./admin/pages/labour/LabourDetail";
-import LabourTodaysWork from "./admin/pages/labour/TodaysWork";
-import LabourAttendance from "./admin/pages/labour/Attendance";
-import LabourPayroll from "./admin/pages/labour/Payroll";
-import LabourPayments from "./admin/pages/labour/Payments";
-import LabourAdvances from "./admin/pages/labour/Advances";
 import DeliveryDashboard from "./admin/pages/delivery/Dashboard";
 import DeliveryDeliveries from "./admin/pages/delivery/Deliveries";
 import DeliveryCreate from "./admin/pages/delivery/DeliveryCreate";
@@ -201,16 +191,6 @@ export default function App() {
           <Route path="communications/event-map" element={<ErrorBoundary moduleName="Communications"><CommunicationsEventMap /></ErrorBoundary>} />
           <Route path="communications/history" element={<ErrorBoundary moduleName="Communications"><CommunicationsHistory /></ErrorBoundary>} />
           <Route path="communications/settings" element={<ErrorBoundary moduleName="Communications"><CommunicationsSettings /></ErrorBoundary>} />
-          <Route path="labour" element={<ErrorBoundary moduleName="Labour"><LabourDashboard /></ErrorBoundary>} />
-          <Route path="labour/employees" element={<ErrorBoundary moduleName="Labour"><LabourEmployees /></ErrorBoundary>} />
-          <Route path="labour/employees/:id" element={<ErrorBoundary moduleName="Labour"><LabourEmployeeDetail /></ErrorBoundary>} />
-          <Route path="labour/labour" element={<ErrorBoundary moduleName="Labour"><LabourLabour /></ErrorBoundary>} />
-          <Route path="labour/labour/:id" element={<ErrorBoundary moduleName="Labour"><LabourLabourDetail /></ErrorBoundary>} />
-          <Route path="labour/todays-work" element={<ErrorBoundary moduleName="Labour"><LabourTodaysWork /></ErrorBoundary>} />
-          <Route path="labour/attendance" element={<ErrorBoundary moduleName="Labour"><LabourAttendance /></ErrorBoundary>} />
-          <Route path="labour/payroll" element={<ErrorBoundary moduleName="Labour"><LabourPayroll /></ErrorBoundary>} />
-          <Route path="labour/payments" element={<ErrorBoundary moduleName="Labour"><LabourPayments /></ErrorBoundary>} />
-          <Route path="labour/advances" element={<ErrorBoundary moduleName="Labour"><LabourAdvances /></ErrorBoundary>} />
           <Route path="delivery" element={<ErrorBoundary moduleName="Delivery"><DeliveryDashboard /></ErrorBoundary>} />
           <Route path="delivery/deliveries" element={<ErrorBoundary moduleName="Delivery"><DeliveryDeliveries /></ErrorBoundary>} />
           <Route path="delivery/deliveries/new" element={<ErrorBoundary moduleName="Delivery"><DeliveryCreate /></ErrorBoundary>} />

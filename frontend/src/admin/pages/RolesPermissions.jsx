@@ -21,7 +21,6 @@ const MODULE_LABELS = {
   analytics: "Analytics",
   accounting: "Accounting",
   delivery: "Delivery",
-  labour: "Employees & Labour",
   inventory: "Inventory",
   reports: "Reports",
   users_roles: "Users & Roles (Developer only)",

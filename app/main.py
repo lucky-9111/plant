@@ -24,7 +24,6 @@ from app.communications.router import router as communications_router
 from app.communications.seed import seed_communications_defaults
 from app.communications.worker import start_worker as start_whatsapp_worker
 from app.delivery.router import router as delivery_router
-from app.labour.router import router as labour_router
 from app.database import Base, SessionLocal, engine
 from app.live_logs.handler import LiveLogHandler
 from app.live_logs.hub import hub as live_log_hub
@@ -451,7 +450,6 @@ app.include_router(api_admin_analytics.router, dependencies=[Depends(require_per
 app.include_router(api_admin_rbac.router)
 app.include_router(api_system_health.router)
 app.include_router(accounting_router, dependencies=[Depends(require_permission("accounting", "VIEW"))])
-app.include_router(labour_router, dependencies=[Depends(require_permission("labour", "VIEW"))])
 app.include_router(delivery_router, dependencies=[Depends(require_permission("delivery", "VIEW"))])
 app.include_router(communications_router, dependencies=[Depends(require_permission("communications", "VIEW"))])
 app.include_router(api_customer.router)

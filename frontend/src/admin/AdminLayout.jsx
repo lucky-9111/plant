@@ -60,17 +60,6 @@ const ACCOUNTING_NAV = [
   { to: "/admin/accounting/tax-rates", label: "Tax Rates", module: "accounting" },
 ];
 
-const WORKFORCE_NAV = [
-  { to: "/admin/labour", label: "Dashboard", end: true, module: "labour" },
-  { to: "/admin/labour/employees", label: "Employees", module: "labour" },
-  { to: "/admin/labour/labour", label: "Labour", module: "labour" },
-  { to: "/admin/labour/todays-work", label: "Today's Work", module: "labour" },
-  { to: "/admin/labour/attendance", label: "Attendance", module: "labour" },
-  { to: "/admin/labour/payroll", label: "Payroll", module: "labour" },
-  { to: "/admin/labour/payments", label: "Payments", module: "labour" },
-  { to: "/admin/labour/advances", label: "Advances", module: "labour" },
-];
-
 const DELIVERY_NAV = [
   { to: "/admin/delivery", label: "Dashboard", end: true, module: "delivery" },
   { to: "/admin/delivery/deliveries", label: "Delivery History", module: "delivery" },
@@ -123,7 +112,6 @@ export default function AdminLayout() {
         <nav className="admin-nav">
           <NavGroup items={NAV} hasPermission={hasPermission} />
           <NavGroup heading="Accounting" items={ACCOUNTING_NAV} hasPermission={hasPermission} />
-          <NavGroup heading="Employees & Labour" items={WORKFORCE_NAV} hasPermission={hasPermission} />
           <NavGroup heading="Delivery Management" items={DELIVERY_NAV} hasPermission={hasPermission} />
           <NavGroup heading="Communications" items={COMMUNICATIONS_NAV} hasPermission={hasPermission} />
           {role === "developer" && (

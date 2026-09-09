@@ -42,7 +42,6 @@ MODULES = [
     "analytics",
     "accounting",
     "delivery",
-    "labour",
     "communications",
     "inventory",
     "reports",
